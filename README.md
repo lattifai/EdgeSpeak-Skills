@@ -23,10 +23,12 @@ Requires [EdgeSpeak](https://edgespeak.com) installed locally (and/or the `edges
 | Skill | What it does |
 |-------|--------------|
 | [`edgespeak-transcribe`](skills/edgespeak-transcribe/SKILL.md) | Transcribe audio/video to text / SRT / JSON, fully on-device |
+| [`edgespeak-align`](skills/edgespeak-align/SKILL.md) | Force-align audio against a known transcript → word-level timestamps (karaoke captions, clip cutting, dubbing) |
+| [`edgespeak-segment`](skills/edgespeak-segment/SKILL.md) | Split a wall of (even unpunctuated) text into natural sentences |
 
 ## How it works
 
-The skill shells out to `edgespeak-cli transcribe`, which talks to the local EdgeSpeak gateway (OpenAI-compatible, `127.0.0.1:1117`, local-only route). Audio is processed on-device — nothing is uploaded.
+The skills shell out to `edgespeak-cli` (`transcribe` / `align` / `segment`), which talks to the local EdgeSpeak gateway (OpenAI-compatible, `127.0.0.1:1117`, local-only route). Audio is processed on-device — nothing is uploaded.
 
 ## License
 
