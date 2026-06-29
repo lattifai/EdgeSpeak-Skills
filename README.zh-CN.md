@@ -16,7 +16,38 @@ npx skills add lattifai/EdgeSpeak-Skills --agent cursor
 npx skills add lattifai/EdgeSpeak-Skills --agent codex
 ```
 
-需要本机装有 [EdgeSpeak](https://edgespeak.com)（和 / 或 `edgespeak-cli`）。
+## 前置要求
+
+Skill 通过 `edgespeak-cli` 工作 —— 一个自包含的本机转录运行时 (macOS arm64)。两种获取方式任选其一：
+
+- **自包含 CLI —— 无需桌面 App：**
+
+  ```bash
+  curl -fsSL https://edgespeak.com/install.sh | sh
+  ```
+
+  会把自包含运行时 (CLI + 本地引擎 + 依赖) 安装到 `~/.edgespeak/runtime`，并把 `edgespeak-cli` 软链进 `~/.local/bin` (PATH 自动配好)。
+
+- **桌面 App：** 从官网安装 [EdgeSpeak](https://edgespeak.com)，它自带同一个 `edgespeak-cli`。
+
+无论哪种方式，装完后验证一下：
+
+```bash
+edgespeak-cli --version
+edgespeak-cli status
+```
+
+之后用 `edgespeak-cli update` 更新运行时 (重新拉取最新的自包含包)。
+
+## 激活
+
+首次使用需要一次性激活 —— 本地引擎需要有效授权：
+
+```bash
+edgespeak-cli activate <KEY>
+```
+
+`<KEY>` 是你的买断 Key 或试用 code (都以 `ES-` 开头，从 [edgespeak.com](https://edgespeak.com) 获取)，同一条命令两者通吃。激活会联网一次，用 Key 换取签名凭据并落地本机；此后买断 Key 可完全离线使用 (试用仍会联网复核)。也可以用 `--stdin` 传 Key (避免进 shell 历史) 或环境变量 `EDGESPEAK_LICENSE_KEY`。随时可跑 `edgespeak-cli status` 查看授权方案、试用剩余时间和锁定原因；过期或失效时会给出 [edgespeak.com](https://edgespeak.com) 的购买链接。
 
 ## 包含的 Skill
 
@@ -28,7 +59,7 @@ npx skills add lattifai/EdgeSpeak-Skills --agent codex
 
 ## 原理
 
-Skill 经 `edgespeak-cli`（`transcribe` / `align` / `segment`）调用本机 EdgeSpeak 网关（OpenAI 兼容，`127.0.0.1:1117`，强制本地路由），或在支持的引擎命令中拉起随附的本地引擎。音频在设备内处理，不上传。
+Skill 经 `edgespeak-cli`（`transcribe` / `align` / `segment`）工作。EdgeSpeak 桌面 App 在运行时，CLI 连接它的本机网关（OpenAI 兼容，`127.0.0.1:1117`，强制本地路由）并复用暖模型 (proxy 模式)；App 没起时，CLI 自己拉起随附的本地引擎 (standalone 模式) —— 这是正常模式，不是错误。两种情况音频都在设备内处理，不上传。
 
 ## 许可
 

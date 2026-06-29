@@ -5,7 +5,7 @@ description: Transcribe audio/video on-device via EdgeSpeak into text, JSON, or 
 
 # EdgeSpeak Transcribe
 
-Turn audio/video into a transcript, **entirely on-device — the audio never leaves the machine**. Under the hood it calls `edgespeak-cli`, which talks to the local EdgeSpeak gateway (OpenAI-compatible, `127.0.0.1:1117`).
+Turn audio/video into a transcript, **entirely on-device — the audio never leaves the machine**. Under the hood it calls `edgespeak-cli transcribe`. When the EdgeSpeak desktop app is running, the CLI talks to its local gateway (OpenAI-compatible, `127.0.0.1:1117`) and reuses the warm model (proxy mode); when the app is not running, the CLI launches the bundled on-device engine itself (standalone mode). **Standalone is a normal mode, not an error.**
 
 ## Inputs to confirm
 
@@ -16,13 +16,16 @@ Turn audio/video into a transcript, **entirely on-device — the audio never lea
 ## How to do it
 
 1. Confirm the path to the file to transcribe.
-2. Check the local gateway if needed:
+2. Check the runtime first:
 
    ```bash
    edgespeak-cli status
    ```
 
-   If it reports a remote active ASR backend, ask the user to switch EdgeSpeak to the local engine before file transcription. If the gateway is unreachable, `transcribe` may still launch the bundled local engine; continue only when the user did not request gateway-only sentence-shaping options.
+   - **Command not found** → the CLI isn't installed. Tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed).
+   - **License not activated / locked** → first use needs a one-time activation: `edgespeak-cli activate <KEY>` (buyout key or trial code from https://edgespeak.com).
+   - **Remote active ASR backend** → file transcription is local-only; ask the user to switch EdgeSpeak to the local engine before transcribing.
+   - **Gateway not running (standalone)** → this is fine; `transcribe` will launch the bundled on-device engine itself. Only the sentence-shaping options below need the app running.
 3. Run `edgespeak-cli` and pass requested tuning options explicitly:
 
    ```bash
@@ -33,6 +36,7 @@ Turn audio/video into a transcript, **entirely on-device — the audio never lea
    - `-o out.srt` / `out.json` / `out.txt`: writes a file; **the extension decides the format**.
    - Use `--format txt|json|srt` when the output path does not end exactly in `.txt`, `.json`, or `.srt` (for example, some temporary filenames).
    - Use `--model <model-id>` only when the user explicitly asks for a specific local EdgeSpeak model.
+   - Use `--license-key <KEY>` (alias `--key`) only to pass a license key explicitly for this run; normally activation (above) already covers it.
 4. With the transcript in hand, summarize / clean up / translate as the user needs.
 
 ## Timing and segment parameter map
@@ -53,7 +57,7 @@ Do not invent unsupported `transcribe` flags:
 
 - `transcribe` does **not** expose `--protected-terms`. If the user has a reference transcript and needs brand/jargon protection during alignment, use `edgespeak-align` with `--protected-terms`.
 - `transcribe` does **not** expose the standalone segmenter's `--threshold`. If the user already has text and asks for a threshold, use `edgespeak-segment --threshold`.
-- If the EdgeSpeak app gateway is not reachable, the bundled standalone engine can run `transcribe`, but it does not support `--min-chars`, `--max-chars`, `--start-margin`, or `--end-margin` yet. Do not run a command with those flags while the gateway is unreachable; ask the user to open EdgeSpeak or omit the sentence-shaping options.
+- **Standalone vs. sentence-shaping options.** When the app is not running, `transcribe` still runs fine in standalone mode, but the sentence-shaping flags `--min-chars`, `--max-chars`, `--start-margin`, and `--end-margin` are **not** supported in standalone yet — they need the app running (proxy mode). So: standalone can transcribe, but do **not** pass those flags while the app is down. If the user wants sentence shaping, ask them to open EdgeSpeak; otherwise just omit those flags and transcribe in standalone.
 
 ## API-only timing controls
 
@@ -77,8 +81,10 @@ When to still reach for the separate skills: use `edgespeak-align` only when you
 
 ## Boundaries / gotchas (read this)
 
-- **Requires `edgespeak-cli`**, installed with EdgeSpeak (`curl -fsSL https://edgespeak.com/install.sh | sh`). If the command isn't found or fails with a runtime error, tell the user to install/open EdgeSpeak or show the error — **do not fabricate a transcript under any circumstances**.
+- **Requires `edgespeak-cli`.** If the command isn't found, tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed). If it's found but errors, show the error — **do not fabricate a transcript under any circumstances**.
+- **First use needs activation.** A fresh install must be activated once with `edgespeak-cli activate <KEY>` (buyout key or trial code from https://edgespeak.com). Without it the on-device engine fails with `license_required`; that error and `status` carry a purchase link — surface it, don't work around it. To pass the key explicitly on a single run, use `--license-key <KEY>` (alias `--key`).
 - **Local-only for file transcription**: `edgespeak-cli transcribe` refuses remote/cloud ASR backends even if the gateway lists them. If status shows a remote active backend, ask the user to switch EdgeSpeak to the local engine before transcribing.
+- **First run in standalone may download a model.** With the app not running, the first transcription downloads the on-device model on demand (progress on stderr, can take tens of seconds). **Don't assume it hung.**
 - **Word-level timing depends on language**: for supported languages, `json` can carry real per-word timestamps (inline forced alignment). For unsupported languages you get **segment-level** (VAD-split) timing only — don't claim per-word timing there.
 - **No speaker diarization** — don't promise "who said what".
 - Long audio can take tens of seconds (model decrypt + inference). **Don't assume it hung** — be patient.
