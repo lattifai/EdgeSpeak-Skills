@@ -1,6 +1,6 @@
 ---
 name: edgespeak-align
-description: Force-align audio/video against a known transcript on-device via EdgeSpeak to produce word-level timestamps (start, end, confidence) for karaoke captions, word-accurate SRT, dubbing, and clip extraction. Use when the user already has the transcript/script/lyrics and wants to know exactly when each word is spoken.
+description: Force-align audio/video against a known transcript on-device via EdgeSpeak to produce word-level timestamps (start, end, score) for karaoke captions, word-accurate SRT, dubbing, and clip extraction. Use when the user already has the transcript/script/lyrics and wants to know exactly when each word is spoken.
 ---
 
 # EdgeSpeak Align
@@ -38,7 +38,7 @@ Alignment ≠ transcription. Transcription guesses the words; alignment is given
    - For short snippets, inline text is also supported: `--text "<reference transcript>"`.
    - Without `-o`: result prints to **stdout**.
    - `-o out.srt` / `out.json` / `out.txt`: the **extension decides the format**. Use `--format` only when the path's extension is ambiguous.
-   - `json` gives the full `{ word, start, end, confidence }[]` (seconds); `srt` gives one cue per word; `txt` is human-readable.
+   - `json` gives the full `{ word, start, end, score }[]` (seconds); `srt` gives one cue per word; `txt` is human-readable.
    - `--format caption-json` gives the canonical Caption shape with `supervisions[].alignment.word[]`.
    - `--protected-terms "<term>"` (repeatable) keeps brand names / jargon verbatim through normalization, so they don't get split or rewritten before matching.
    - `--license-key <KEY>` (alias `--key`) only to pass a license key explicitly for this run; normally activation already covers it.
@@ -47,12 +47,12 @@ Alignment ≠ transcription. Transcription guesses the words; alignment is given
 ## Output shape (json)
 
 ```json
-{ "duration": 19.6855, "words": [ { "word": "as", "start": 0.02, "end": 0.18, "confidence": 0.92 }, ... ] }
+{ "duration": 19.6855, "words": [ { "word": "as", "start": 0.02, "end": 0.18, "score": 0.92 }, ... ] }
 ```
 
-`confidence` is a `[0, 1]` score (higher = more confident). Use it to flag low-confidence words, but do not treat it as a calibrated percentage.
+`score` is a `[0, 1]` confidence (higher = more confident). Use it to flag low-score words, but do not treat it as a calibrated percentage.
 
-If the user asks for `--format caption-json`, the result switches to the canonical Caption shape: words live under `supervisions[].alignment.word[]` and use `{ symbol, start, duration, score }`. That is different from the default flat align JSON fields `{ word, start, end, confidence }`.
+If the user asks for `--format caption-json`, the result switches to the canonical Caption shape: words live under `supervisions[].alignment.word[]` and use `{ symbol, start, duration, score }`. That is different from the default flat align JSON fields `{ word, start, end, score }`.
 
 ## Sentence-level timing (combine with segment)
 
