@@ -47,7 +47,7 @@ Alignment ≠ transcription. Transcription guesses the words; alignment is given
 ## Output shape (json)
 
 ```json
-{ "words": [ { "word": "as", "start": 0.02, "end": 0.18, "confidence": 0.92 }, ... ] }
+{ "duration": 19.6855, "words": [ { "word": "as", "start": 0.02, "end": 0.18, "confidence": 0.92 }, ... ] }
 ```
 
 `confidence` is a `[0, 1]` score (higher = more confident). Use it to flag low-confidence words, but do not treat it as a calibrated percentage.
