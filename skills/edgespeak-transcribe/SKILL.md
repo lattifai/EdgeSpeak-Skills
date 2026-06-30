@@ -53,6 +53,8 @@ Pass through user-requested timing and sentence-shaping knobs instead of silentl
 
 For supported languages, the local gateway file flow runs per-window forced alignment and semantic sentence splitting by default. Plain `txt`/stdout gives text only; use `json` or `srt` when the user needs timing.
 
+In CLI `json` / caption JSON output, word timing items use `{ symbol, start, duration }` under `supervisions[].alignment.word[]`. Transcription JSON does **not** include per-word confidence. Do not parse it as flat OpenAI `words[]` with `{ word, start, end, confidence }`.
+
 Do not invent unsupported `transcribe` flags:
 
 - `transcribe` does **not** expose `--protected-terms`. If the user has a reference transcript and needs brand/jargon protection during alignment, use `edgespeak-align` with `--protected-terms`.

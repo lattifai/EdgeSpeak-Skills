@@ -52,6 +52,8 @@ Alignment ≠ transcription. Transcription guesses the words; alignment is given
 
 `confidence` is a `[0, 1]` score (higher = more confident). Use it to flag low-confidence words, but do not treat it as a calibrated percentage.
 
+If the user asks for `--format caption-json`, the result switches to the canonical Caption shape: words live under `supervisions[].alignment.word[]` and use `{ symbol, start, duration, score }`. That is different from the default flat align JSON fields `{ word, start, end, confidence }`.
+
 ## Sentence-level timing (combine with segment)
 
 `align` returns **words**, not sentences. To get sentence/caption-level timing:
