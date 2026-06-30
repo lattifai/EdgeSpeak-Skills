@@ -13,7 +13,7 @@ Alignment ≠ transcription. Transcription guesses the words; alignment is given
 
 - Media path to align.
 - Reference transcript/script/lyrics text.
-- Desired output: stdout text, `.txt`, `.json`, or `.srt`.
+- Desired output: stdout text, `.txt`, `.json`, `.srt`, or canonical caption JSON.
 - Optional protected terms for brand names, jargon, names, or tokens that must stay verbatim.
 
 ## How to do it
@@ -31,13 +31,15 @@ Alignment ≠ transcription. Transcription guesses the words; alignment is given
 3. Run `edgespeak-cli align`:
 
    ```bash
-   edgespeak-cli align <audio-or-video-file> --text "<reference transcript>" [-o out.json] [--format txt|json|srt]
+   edgespeak-cli align <audio-or-video-file> --text-file script.txt [-o out.json] [--format txt|json|srt|caption-json]
    ```
 
-   - Read text from a file with a shell substitution: `--text "$(cat script.txt)"`.
+   - Prefer `--text-file` / `-T` for reference text files. It reads `.txt`, `.srt`, or caption JSON without pushing long text through argv.
+   - For short snippets, inline text is also supported: `--text "<reference transcript>"`.
    - Without `-o`: result prints to **stdout**.
    - `-o out.srt` / `out.json` / `out.txt`: the **extension decides the format**. Use `--format` only when the path's extension is ambiguous.
    - `json` gives the full `{ word, start, end, confidence }[]` (seconds); `srt` gives one cue per word; `txt` is human-readable.
+   - `--format caption-json` gives the canonical Caption shape with `supervisions[].alignment.word[]`.
    - `--protected-terms "<term>"` (repeatable) keeps brand names / jargon verbatim through normalization, so they don't get split or rewritten before matching.
    - `--license-key <KEY>` (alias `--key`) only to pass a license key explicitly for this run; normally activation already covers it.
 4. Use the word timings to build captions, cut clips, or sync dubbing.
@@ -45,10 +47,10 @@ Alignment ≠ transcription. Transcription guesses the words; alignment is given
 ## Output shape (json)
 
 ```json
-{ "words": [ { "word": "as", "start": 0.02, "end": 0.18, "confidence": -2.61 }, ... ] }
+{ "words": [ { "word": "as", "start": 0.02, "end": 0.18, "confidence": 0.92 }, ... ] }
 ```
 
-`confidence` is a log-probability (higher = more confident; it is **not** a 0–1 score). Use it only to flag low-confidence words, not as a percentage.
+`confidence` is a `[0, 1]` score (higher = more confident). Use it to flag low-confidence words, but do not treat it as a calibrated percentage.
 
 ## Sentence-level timing (combine with segment)
 

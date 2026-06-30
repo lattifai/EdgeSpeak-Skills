@@ -47,7 +47,7 @@ edgespeak-cli status
 edgespeak-cli activate <KEY>
 ```
 
-`<KEY>` 是你的买断 Key 或试用 code (都以 `ES-` 开头，从 [edgespeak.com](https://edgespeak.com) 获取)，同一条命令两者通吃。激活会联网一次，用 Key 换取签名凭据并落地本机；此后买断 Key 可完全离线使用 (试用仍会联网复核)。也可以用 `--stdin` 传 Key (避免进 shell 历史) 或环境变量 `EDGESPEAK_LICENSE_KEY`。随时可跑 `edgespeak-cli status` 查看授权方案、试用剩余时间和锁定原因；过期或失效时会给出 [edgespeak.com](https://edgespeak.com) 的购买链接。
+`<KEY>` 是你的买断 Key 或试用 code (都以 `ES-` 开头，从 [edgespeak.com](https://edgespeak.com) 获取)，同一条命令两者通吃。激活会联网一次，用 Key 换取签名凭据并落地本机。买断授权会显示为 `lifetime`；除非显式开启 full offline mode，`edgespeak-cli status` 还会显示缓存授权可在无网络下工作的时间窗口。也可以用 `--stdin` 传 Key (避免进 shell 历史) 或环境变量 `EDGESPEAK_LICENSE_KEY`。随时可跑 `edgespeak-cli status` 查看授权方案、试用剩余时间、离线缓存窗口和锁定原因；过期或失效时会给出 [edgespeak.com](https://edgespeak.com) 的购买链接。
 
 ## 包含的 Skill
 

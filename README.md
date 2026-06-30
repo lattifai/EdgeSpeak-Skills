@@ -47,7 +47,7 @@ First use needs a one-time activation — the on-device engine requires a valid 
 edgespeak-cli activate <KEY>
 ```
 
-`<KEY>` is your buyout key or trial code (both start with `ES-`, obtained from [edgespeak.com](https://edgespeak.com)). The same command handles either. Activation goes online once to exchange the key for a signed credential stored on your machine; after that a buyout key works fully offline (a trial still re-checks online). You can also pass the key via `--stdin` (avoids shell history) or the `EDGESPEAK_LICENSE_KEY` environment variable. Run `edgespeak-cli status` any time to see your plan, trial time left, and any lock reason; expired or invalid licenses surface a purchase link at [edgespeak.com](https://edgespeak.com).
+`<KEY>` is your buyout key or trial code (both start with `ES-`, obtained from [edgespeak.com](https://edgespeak.com)). The same command handles either. Activation goes online once to exchange the key for a signed credential stored on your machine. Buyout licenses show as `lifetime`; unless full offline mode is explicitly enabled, `edgespeak-cli status` will also show how long the cached license can work without internet. You can pass the key via `--stdin` (avoids shell history) or the `EDGESPEAK_LICENSE_KEY` environment variable. Run `edgespeak-cli status` any time to see your plan, trial time left, offline cache window, and any lock reason; expired or invalid licenses surface a purchase link at [edgespeak.com](https://edgespeak.com).
 
 ## Skills
 
