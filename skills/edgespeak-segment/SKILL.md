@@ -35,7 +35,7 @@ Turn an undifferentiated block of text into **natural sentences**, on-device. Th
    # or inline
    edgespeak-cli segment --text "<text to split>"
 
-   # length-constrained split, currently best used in standalone mode
+   # length-constrained split
    edgespeak-cli segment --file transcript.txt --min-chars 40 --max-chars 120
    ```
 
@@ -43,7 +43,7 @@ Turn an undifferentiated block of text into **natural sentences**, on-device. Th
    - Default output (`txt` / stdout): one sentence per line.
    - `--format json`: `[{ text, start, end }, ...]`.
    - `--threshold <0..1>` tunes boundary sensitivity (default `0.35`). **Lower → more, shorter sentences; higher → fewer, longer sentences.** Adjust only if the default over/under-splits.
-   - `--min-chars <N>` / `--max-chars <N>` tune length-constrained splitting. These currently take effect in the standalone one-shot path; the App gateway proxy path still accepts only `threshold`.
+   - `--min-chars <N>` / `--max-chars <N>` tune length-constrained splitting. They work in both proxy mode and standalone mode.
    - `--license-key <KEY>` (alias `--key`) only to pass a license key explicitly for this run; normally activation already covers it.
 
 ## Timestamps: read this
@@ -69,7 +69,7 @@ Use `segment` alone when you only need **clean sentence text**; add `align` when
 - **Requires `edgespeak-cli`.** If the command isn't found, tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed). If it's found but errors, show the error — **do not hand-split the text yourself and pass it off as the model's output**.
 - **First use needs activation.** A fresh install must be activated once with `edgespeak-cli activate <KEY>` (buyout key or trial code from https://edgespeak.com). Without it the on-device engine fails with `license_required`; that error and `status` carry a purchase link — surface it, don't work around it. To pass the key on a single run, use `--license-key <KEY>` (alias `--key`).
 - **It does not add punctuation or capitalization** — it finds boundaries. Output sentences carry the input's casing/spelling (ASR typos stay).
-- **Length constraints are path-sensitive for now.** If `--min-chars` / `--max-chars` must be honored exactly, run standalone by closing EdgeSpeak or by using an unreachable `--base-url`; when the App gateway is reachable, `segment` currently uses the gateway threshold-only route.
+- **Length constraints work in both runtime modes.** If `--min-chars` / `--max-chars` behave differently between proxy and standalone, treat it as a bug and capture the command, mode, and CLI version.
 - **First standalone segment after a model-key rename can need a credential refresh.** If a fresh standalone run fails with `model_key_unavailable` / `device-bound-model-key` / `model_not_found (HTTP 404)`, tell the user to open EdgeSpeak once or refresh their license credentials, then retry. Do not treat it as permanent segmentation failure.
 - **Long text is slow**: it's a real model pass. ~96K characters takes around 3 minutes. It is not hung — be patient.
 - For very large inputs prefer `--file` over a huge inline `--text` to avoid shell-length limits.

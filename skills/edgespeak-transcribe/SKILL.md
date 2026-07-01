@@ -25,7 +25,7 @@ Turn audio/video into a transcript, **entirely on-device — the audio never lea
    - **Command not found** → the CLI isn't installed. Tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed).
    - **License not activated / locked** → first use needs a one-time activation: `edgespeak-cli activate <KEY>` (buyout key or trial code from https://edgespeak.com).
    - **Remote active ASR backend** → file transcription is local-only; ask the user to switch EdgeSpeak to the local engine before transcribing.
-   - **Gateway not running (standalone)** → this is fine; `transcribe` will launch the bundled on-device engine itself. Only the sentence-shaping options below need the app running.
+   - **Gateway not running (standalone)** → this is fine; `transcribe` will launch the bundled on-device engine itself.
 3. Run `edgespeak-cli` and pass requested tuning options explicitly:
 
    ```bash
@@ -67,15 +67,14 @@ Prefer `edgespeak-cli transcribe`. If the user explicitly asks to pass lower-lev
 
 Use `POST /v1/audio/transcriptions` with multipart fields:
 
-- `path=/absolute/media/path` or `file=@media.wav`
+- `file=@media.wav`
 - `response_format=verbose_json`
 - `timestamp_granularities[]=word` to request word-level output
-- `word_timestamp_enabled=true|false` to enable/skip forced-alignment word timestamps
-- `semantic_sentence_enabled=true|false` to enable/skip semantic sentence splitting
-- `length_enabled=true|false`, `min_chars=<N>`, `max_chars=<N>` for sentence length shaping
-- `start_margin_ms=<MS>`, `end_margin_ms=<MS>` for sentence/caption padding
+- `x_edgespeak_semantic_segmentation={"enabled":true,"min_chars":40,"max_chars":160,"start_margin_ms":80,"end_margin_ms":120}` to request semantic sentence shaping
 
 API margin fields are milliseconds. Convert from CLI-style seconds explicitly: `--start-margin 0.2` corresponds to `start_margin_ms=200`.
+
+The OpenAI-compatible transcription API uses multipart `file` upload. Do not send a text `path` field to `/v1/audio/transcriptions`; path-based file execution is an internal CLI/native optimization, not the public OpenAI-compatible contract. Legacy top-level fields such as `semantic_sentence_enabled`, `min_chars`, `max_chars`, `start_margin_ms`, and `end_margin_ms` may be accepted for compatibility, but new examples should prefer the aggregated `x_edgespeak_semantic_segmentation` field.
 
 Only use this API path when the user needs those specific controls and you have the local gateway URL/key context. Otherwise stay with the CLI.
 
