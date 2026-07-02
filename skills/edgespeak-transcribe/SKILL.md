@@ -86,11 +86,11 @@ Use `POST /v1/audio/transcriptions` with multipart fields:
 - `file=@media.wav`
 - `response_format=verbose_json`
 - `timestamp_granularities[]=word` to request word-level output (requires `response_format=verbose_json`). Word-level results land under `segments[].words[]` in the response, items `{ word, start, end, score? }` in seconds — EdgeSpeak does **not** emit OpenAI's top-level `words[]`, so a reader that only checks the top level sees nothing.
-- `x_edgespeak_semantic_segmentation={"enabled":true,"min_chars":40,"max_chars":160,"start_margin_ms":80,"end_margin_ms":120}` to request semantic sentence shaping
+- `x_edgespeak_semantic_segmentation={"min_chars":40,"max_chars":160,"start_margin":0.08,"end_margin":0.12}` to request semantic sentence shaping. All four subfields are optional, margins are in **seconds**, and passing any shaping field activates shaping
 
-API margin fields are milliseconds. Convert from CLI-style seconds explicitly: `--start-margin 0.2` corresponds to `start_margin_ms=200`.
+API margin fields are seconds, the same unit as the CLI flags. When no shaping field is passed, the EdgeSpeak app's saved sentence-segmentation preferences decide the defaults; any field you pass overrides them.
 
-The OpenAI-compatible transcription API uses multipart `file` upload. Do not send a text `path` field to `/v1/audio/transcriptions` — the gateway rejects it with a 400. For same-machine calls you may instead put a local **absolute path as the `file` field value** (e.g. curl `-F file=/abs/media.wav`, no `@`); the loopback gateway detects it and reads from disk, which avoids re-uploading large files. Anywhere else, upload bytes with `file=@`. Legacy top-level fields such as `semantic_sentence_enabled`, `min_chars`, `max_chars`, `start_margin_ms`, and `end_margin_ms` may be accepted for compatibility, but new examples should prefer the aggregated `x_edgespeak_semantic_segmentation` field.
+The OpenAI-compatible transcription API uses multipart `file` upload. Do not send a text `path` field to `/v1/audio/transcriptions` — the gateway rejects it with a 400. For same-machine calls you may instead put a local **absolute path as the `file` field value** (e.g. curl `-F file=/abs/media.wav`, no `@`); the loopback gateway detects it and reads from disk, which avoids re-uploading large files. Anywhere else, upload bytes with `file=@`. Top-level multipart fields `min_chars`, `max_chars`, `start_margin`, and `end_margin` (seconds) are also accepted and mean the same as the aggregated field.
 
 Only use this API path when the user needs those specific controls and you have the local gateway URL/key context. Otherwise stay with the CLI.
 
