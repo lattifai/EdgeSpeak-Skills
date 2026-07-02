@@ -45,7 +45,7 @@ Pass through user-requested timing and sentence-shaping knobs instead of silentl
 
 | User asks for | Use with `transcribe` | Notes |
 | --- | --- | --- |
-| Word-level timing, karaoke timing, word-accurate structured output | `-o out.json` or `--format json` | CLI JSON uses the EdgeSpeak caption JSON shape; when word timing is available, words are stored under each supervision's `alignment.word` array. Do not assume OpenAI `verbose_json` `words[]` fields from the CLI renderer. |
+| Word-level timing, karaoke timing, word-accurate structured output | `-o out.json` or `--format json` | CLI JSON is the same shape as the gateway's `verbose_json` transcription response; when word timing is available, words are stored under each segment's `words` array (`segments[].words[]`). There is no top-level `words[]`. |
 | Subtitle cues from real speech-window timing | `-o out.srt` or `--format srt` | SRT uses the sentence/caption segments produced by the local file flow. |
 | Minimum / maximum sentence length | `--min-chars <N>` / `--max-chars <N>` | These tune semantic sentence shaping. They work in both proxy mode and standalone mode. |
 | Leading / trailing caption padding | `--start-margin <SECS>` / `--end-margin <SECS>` | Seconds, clamped to the supported range (currently 0.0-5.0). They apply to timestamped transcript windows, not plain text segmentation. |
@@ -53,13 +53,29 @@ Pass through user-requested timing and sentence-shaping knobs instead of silentl
 
 For supported languages, the local gateway file flow runs per-window forced alignment and semantic sentence splitting by default. Plain `txt`/stdout gives text only; use `json` or `srt` when the user needs timing.
 
-In CLI `json` / caption JSON output, word timing items use `{ symbol, start, duration }` under `supervisions[].alignment.word[]`. Transcription JSON does **not** include a per-word score. Do not parse it as flat OpenAI `words[]` with `{ word, start, end, score }`.
+CLI `json` output is **exactly the gateway's `verbose_json` response shape** — in proxy mode the API response is passed through verbatim, and standalone mode constructs the identical shape. Word timing items use `{ word, start, end, score? }` (seconds) under `segments[].words[]`. `score` is a `[0, 1]` confidence and is present only when the engine has a real alignment source — absent means "no score", never fabricate one:
+
+```json
+{
+  "task": "transcribe",
+  "duration": 19.69,
+  "language": "en",
+  "text": "Lattice AI is a high-performance engine ...",
+  "segments": [
+    { "id": 0, "start": 0.0, "end": 19.69, "text": "Lattice AI is a high-performance engine ...",
+      "words": [ { "word": "Lattice", "start": 0.22, "end": 0.64, "score": 0.91 } ] }
+  ],
+  "usage": { "type": "duration", "seconds": 19.69 }
+}
+```
+
+`text` is the full continuous transcript. Optional keys are omitted rather than set to null: `language` appears only when the engine reports one, `segments` is omitted when empty, and a segment's `words` is omitted when there is no word timing. Words are nested per segment — do not read a flat top-level `words[]`. JSON key order is not guaranteed (may be alphabetical); parse by key, not position.
 
 Do not invent unsupported `transcribe` flags:
 
 - `transcribe` does **not** expose `--protected-terms`. If the user has a reference transcript and needs brand/jargon protection during alignment, use `edgespeak-align` with `--protected-terms`.
 - `transcribe` does **not** expose the standalone segmenter's `--threshold`. If the user already has text and asks for a threshold, use `edgespeak-segment --threshold`.
-- **Standalone sentence shaping is supported.** When the app is not running, `transcribe` runs in standalone mode and still accepts `--min-chars`, `--max-chars`, `--start-margin`, and `--end-margin`. Unspecified fields inherit the saved EdgeSpeak sentence-segmentation preferences; explicit flags override only the fields they set.
+- **Standalone accepts sentence shaping too.** When the app is not running, `transcribe` runs in standalone mode and still accepts `--min-chars`, `--max-chars`, `--start-margin`, and `--end-margin`. Unspecified fields inherit the saved EdgeSpeak sentence-segmentation preferences; explicit flags override only the fields they set.
 
 ## API-only timing controls
 
@@ -69,12 +85,12 @@ Use `POST /v1/audio/transcriptions` with multipart fields:
 
 - `file=@media.wav`
 - `response_format=verbose_json`
-- `timestamp_granularities[]=word` to request word-level output
+- `timestamp_granularities[]=word` to request word-level output (requires `response_format=verbose_json`). Word-level results land under `segments[].words[]` in the response, items `{ word, start, end, score? }` in seconds — EdgeSpeak does **not** emit OpenAI's top-level `words[]`, so a reader that only checks the top level sees nothing.
 - `x_edgespeak_semantic_segmentation={"enabled":true,"min_chars":40,"max_chars":160,"start_margin_ms":80,"end_margin_ms":120}` to request semantic sentence shaping
 
 API margin fields are milliseconds. Convert from CLI-style seconds explicitly: `--start-margin 0.2` corresponds to `start_margin_ms=200`.
 
-The OpenAI-compatible transcription API uses multipart `file` upload. Do not send a text `path` field to `/v1/audio/transcriptions`; path-based file execution is an internal CLI/native optimization, not the public OpenAI-compatible contract. Legacy top-level fields such as `semantic_sentence_enabled`, `min_chars`, `max_chars`, `start_margin_ms`, and `end_margin_ms` may be accepted for compatibility, but new examples should prefer the aggregated `x_edgespeak_semantic_segmentation` field.
+The OpenAI-compatible transcription API uses multipart `file` upload. Do not send a text `path` field to `/v1/audio/transcriptions` — the gateway rejects it with a 400. For same-machine calls you may instead put a local **absolute path as the `file` field value** (e.g. curl `-F file=/abs/media.wav`, no `@`); the loopback gateway detects it and reads from disk, which avoids re-uploading large files. Anywhere else, upload bytes with `file=@`. Legacy top-level fields such as `semantic_sentence_enabled`, `min_chars`, `max_chars`, `start_margin_ms`, and `end_margin_ms` may be accepted for compatibility, but new examples should prefer the aggregated `x_edgespeak_semantic_segmentation` field.
 
 Only use this API path when the user needs those specific controls and you have the local gateway URL/key context. Otherwise stay with the CLI.
 
@@ -87,5 +103,6 @@ When to still reach for the separate skills: use `edgespeak-align` only when you
 - **Local-only for file transcription**: `edgespeak-cli transcribe` refuses remote/cloud ASR backends even if the gateway lists them. If `edgespeak-cli status` shows `transcribe` as a remote backend, ask the user to switch EdgeSpeak to the local engine before transcribing.
 - **First run in standalone may download a model.** With the app not running, the first transcription downloads the on-device model on demand (progress on stderr, can take tens of seconds). **Don't assume it hung.**
 - **Word-level timing depends on language**: for supported languages, `json` can carry real per-word timestamps (inline forced alignment). For unsupported languages you get **segment-level** (VAD-split) timing only — don't claim per-word timing there.
+- **Check that word timing actually arrived.** If the `json` output comes back as a single whole-audio segment with no `words` array, the on-device post-processing didn't run — open the EdgeSpeak app and rerun (proxy mode). Never pad missing word timing yourself.
 - **No speaker diarization** — don't promise "who said what".
 - Long audio can take tens of seconds (model decrypt + inference). **Don't assume it hung** — be patient.

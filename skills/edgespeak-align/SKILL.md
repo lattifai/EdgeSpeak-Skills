@@ -13,7 +13,7 @@ Alignment ≠ transcription. Transcription guesses the words; alignment is given
 
 - Media path to align.
 - Reference transcript/script/lyrics text.
-- Desired output: stdout text, `.txt`, `.json`, `.srt`, or canonical caption JSON.
+- Desired output: stdout text, `.txt`, `.json`, or `.srt`.
 - Optional protected terms for brand names, jargon, names, or tokens that must stay verbatim.
 
 ## How to do it
@@ -31,28 +31,38 @@ Alignment ≠ transcription. Transcription guesses the words; alignment is given
 3. Run `edgespeak-cli align`:
 
    ```bash
-   edgespeak-cli align <audio-or-video-file> --text-file script.txt [-o out.json] [--format txt|json|srt|caption-json]
+   edgespeak-cli align <audio-or-video-file> --text-file script.txt [-o out.json] [--format txt|json|srt]
    ```
 
    - Prefer `--text-file` / `-T` for reference text files. It reads `.txt`, `.srt`, or caption JSON without pushing long text through argv.
    - For short snippets, inline text is also supported: `--text "<reference transcript>"`.
    - Without `-o`: result prints to **stdout**.
    - `-o out.srt` / `out.json` / `out.txt`: the **extension decides the format**. Use `--format` only when the path's extension is ambiguous.
-   - `json` gives the full `{ word, start, end, score }[]` (seconds); `srt` gives one cue per word; `txt` is human-readable.
-   - `--format caption-json` gives the canonical Caption shape with `supervisions[].alignment.word[]`.
+   - `json` is the gateway alignment response shape — `{ task: "align", duration, text, segments[].words[], usage }`, words in seconds with a `[0,1]` `score`; `srt` gives one cue per word; `txt` is human-readable.
    - `--protected-terms "<term>"` (repeatable) keeps brand names / jargon verbatim through normalization, so they don't get split or rewritten before matching.
    - `--license-key <KEY>` (alias `--key`) only to pass a license key explicitly for this run; normally activation already covers it.
 4. Use the word timings to build captions, cut clips, or sync dubbing.
 
 ## Output shape (json)
 
+CLI `json` output is **identical to the gateway's `POST /v1/audio/alignments` response** — proxy mode passes the API response through verbatim, standalone constructs the same shape:
+
 ```json
-{ "duration": 19.6855, "words": [ { "word": "as", "start": 0.02, "end": 0.18, "score": 0.92 }, ... ] }
+{
+  "task": "align",
+  "duration": 19.6855,
+  "text": "as you can see it's easy ...",
+  "segments": [
+    { "id": 0, "start": 0.02, "end": 19.52, "text": "as you can see it's easy ...",
+      "words": [ { "word": "as", "start": 0.02, "end": 0.18, "score": 0.92 } ] }
+  ],
+  "usage": { "type": "duration", "seconds": 19.6855 }
+}
 ```
 
-`score` is a `[0, 1]` confidence (higher = more confident). Use it to flag low-score words, but do not treat it as a calibrated percentage.
-
-If the user asks for `--format caption-json`, the result switches to the canonical Caption shape: words live under `supervisions[].alignment.word[]` and use `{ symbol, start, duration, score }`. That is different from the default flat align JSON fields `{ word, start, end, score }`.
+- The aligned words live under `segments[].words[]` (usually a single segment spanning the aligned content; collect words across all segments to get the full word list). There is no flat top-level `words[]`.
+- `score` is a `[0, 1]` confidence (higher = more confident). Use it to flag low-score words, but do not treat it as a calibrated percentage.
+- The alignment response carries no `language` key. JSON key order is not guaranteed (may be alphabetical); parse by key, not position.
 
 ## Sentence-level timing (combine with segment)
 
@@ -71,13 +81,11 @@ This pairing is the reliable way to get sentence timestamps; `segment` alone on 
 - **The text must roughly match the audio.** Alignment assumes the words are actually spoken; large mismatches (wrong language, missing/extra paragraphs) degrade timing. It is robust to minor disfluencies and punctuation, not to substituting a different transcript.
 - **No speaker diarization** — alignment times the words; it does not say who spoke them.
 
-### Long audio: chunk it, or it will eat your RAM
+### Long audio: expect long runtimes, not manual chunking
 
-Alignment does **not** VAD-chunk the audio (transcription does; alignment does not). It builds one forced-alignment lattice over the **entire** waveform, and peak memory scales with **total duration × vocabulary**, with no upper bound. As a rule of thumb the on-device aligner consumes very roughly **5–6 GB of RAM per 15 minutes of audio** in a single call — an ~85-minute file can spike to **30+ GB** and thrash or get OOM-killed.
+The engine streams long audio automatically: files longer than ~3 minutes are aligned in fixed-length chunks with bounded peak memory — a few GB (roughly 5 GB measured on an 85-minute file), instead of the 30+ GB an unbounded whole-file lattice would need. Short files are aligned in one globally optimal pass. You do **not** need to pre-split media or do offset arithmetic for memory reasons — align the whole file and let the engine chunk.
 
-So for anything beyond a few minutes, **do not align the whole file in one shot.** Prefer pre-split media and matching reference-text slices from the user. If you have a reliable media tool and explicit chunk boundaries, align each segment against its corresponding text slice and add each chunk's offset back to the returned `start`/`end`. Short clips (seconds to a couple of minutes) are fine to align directly.
-
-If you do not have reliable chunk boundaries or matching text slices, stop and ask for them instead of guessing offsets or slicing the transcript heuristically. If the user really wants one long file aligned end-to-end and won't chunk, warn them about the memory cost first rather than silently launching a 30 GB job.
+The one thing that still scales with duration is **runtime**: a long file takes correspondingly long. That's normal, not a hang — see the timeout section below.
 
 ### Timeouts and a busy gateway
 

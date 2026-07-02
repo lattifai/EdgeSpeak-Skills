@@ -41,14 +41,14 @@ Turn an undifferentiated block of text into **natural sentences**, on-device. Th
 
    - `--file` and `--text` are mutually exclusive.
    - Default output (`txt` / stdout): one sentence per line.
-   - `--format json`: `[{ text, start, end }, ...]`.
+   - `--format json`: an envelope object `{ "text": "<all sentences joined>", "segments": [{ "text": ..., "start"?: ..., "end"?: ... }] }` — the sentence array lives under the top-level `segments` key, it is **not** a bare array.
    - `--threshold <0..1>` tunes boundary sensitivity (default `0.35`). **Lower → more, shorter sentences; higher → fewer, longer sentences.** Adjust only if the default over/under-splits.
-   - `--min-chars <N>` / `--max-chars <N>` tune length-constrained splitting. They work in both proxy mode and standalone mode.
+   - `--min-chars <N>` / `--max-chars <N>` tune length-constrained splitting.
    - `--license-key <KEY>` (alias `--key`) only to pass a license key explicitly for this run; normally activation already covers it.
 
 ## Timestamps: read this
 
-When the input is **plain text**, the `start` / `end` fields in JSON output are **placeholders** (e.g. `0.0` / `0.001`) — plain text carries no timing, so the splitter cannot invent it. **Do not present these as real timestamps.**
+When the input is **plain text**, there is no timing to report: the JSON segments carry **no** `start` / `end` fields — do not assume the keys exist, and never fabricate times. The same applies to `--format srt` on plain text: the cues carry no real timing, so the SRT is not usable as a subtitle file.
 
 To get **real per-sentence timing**, pair segmentation with alignment:
 
@@ -61,15 +61,23 @@ Use `segment` alone when you only need **clean sentence text**; add `align` when
 ## Output shape (json)
 
 ```json
-[ { "text": "As you can see it's easy it's simple.", "start": 0.0, "end": 0.001 }, ... ]
+{
+  "text": "As you can see it's easy it's simple. And it works.",
+  "segments": [
+    { "text": "As you can see it's easy it's simple." },
+    { "text": "And it works." }
+  ]
+}
 ```
+
+`text` is all sentences joined; `segments[]` holds one entry per sentence. With plain-text input the entries carry only `text` (no `start`/`end`); a `speaker` field appears only when the input provided one.
 
 ## Boundaries / gotchas (read this)
 
 - **Requires `edgespeak-cli`.** If the command isn't found, tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed). If it's found but errors, show the error — **do not hand-split the text yourself and pass it off as the model's output**.
 - **First use needs activation.** A fresh install must be activated once with `edgespeak-cli activate <KEY>` (buyout key or trial code from https://edgespeak.com). Without it the on-device engine fails with `license_required`; that error and `status` carry a purchase link — surface it, don't work around it. To pass the key on a single run, use `--license-key <KEY>` (alias `--key`).
 - **It does not add punctuation or capitalization** — it finds boundaries. Output sentences carry the input's casing/spelling (ASR typos stay).
-- **Length constraints work in both runtime modes.** If `--min-chars` / `--max-chars` behave differently between proxy and standalone, treat it as a bug and capture the command, mode, and CLI version.
+- **If length constraints don't take effect**, or a run fails while parsing the result, open the EdgeSpeak app and rerun (proxy mode), and capture the command, mode, and CLI version as a bug report — don't hand-split to fake the constraint.
 - **First standalone segment after a model-key rename can need a credential refresh.** If a fresh standalone run fails with `model_key_unavailable` / `device-bound-model-key` / `model_not_found (HTTP 404)`, tell the user to open EdgeSpeak once or refresh their license credentials, then retry. Do not treat it as permanent segmentation failure.
 - **Long text is slow**: it's a real model pass. ~96K characters takes around 3 minutes. It is not hung — be patient.
 - For very large inputs prefer `--file` over a huge inline `--text` to avoid shell-length limits.
