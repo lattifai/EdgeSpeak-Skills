@@ -26,7 +26,7 @@ Alignment ≠ transcription. Transcription guesses the words; alignment is given
    ```
 
    - **Command not found** → the CLI isn't installed. Tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed).
-   - **License not activated / locked** → first use needs a one-time activation: `edgespeak-cli activate <KEY>` (buyout key or trial code from https://edgespeak.com).
+   - **License not activated / locked** → run `edgespeak-cli trial` to sign in via the browser (new accounts start a free 7-day trial; purchased accounts activate directly), or `edgespeak-cli activate <KEY>` if you already have a key.
    - **Gateway not running (standalone)** → this is fine; `align` is local-only and runs against the bundled on-device engine. When the app is running it reuses the warm gateway (proxy) instead.
 3. Run `edgespeak-cli align`:
 
@@ -76,7 +76,7 @@ This pairing is the reliable way to get sentence timestamps; `segment` alone on 
 ## Boundaries / gotchas (read this)
 
 - **Requires `edgespeak-cli`.** If the command isn't found, tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed). If it's found but errors, show the error — **do not fabricate timings under any circumstances**.
-- **First use needs activation.** A fresh install must be activated once with `edgespeak-cli activate <KEY>` (buyout key or trial code from https://edgespeak.com). Without it the on-device engine fails with `license_required`; that error and `status` carry a purchase link — surface it, don't work around it. To pass the key on a single run, use `--license-key <KEY>` (alias `--key`).
+- **First use needs activation.** A fresh install activates once via `edgespeak-cli trial` (browser sign-in; new accounts start a free 7-day trial, purchased accounts activate directly) or `edgespeak-cli activate <KEY>`. Without it the on-device engine fails with `license_required`; the error carries self-serve guidance (open the EdgeSpeak app / `edgespeak-cli trial` / `activate <KEY>`) plus a purchase link — surface it, don't work around it. To pass the key on a single run, use `--license-key <KEY>` (alias `--key`).
 - **Local-only**: alignment uses the local EdgeSpeak alignment runtime; audio stays on device.
 - **The text must roughly match the audio.** Alignment assumes the words are actually spoken; large mismatches (wrong language, missing/extra paragraphs) degrade timing. It is robust to minor disfluencies and punctuation, not to substituting a different transcript.
 - **No speaker diarization** — alignment times the words; it does not say who spoke them.

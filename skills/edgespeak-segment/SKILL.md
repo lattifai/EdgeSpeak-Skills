@@ -24,7 +24,7 @@ Turn an undifferentiated block of text into **natural sentences**, on-device. Th
    ```
 
    - **Command not found** → the CLI isn't installed. Tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed).
-   - **License not activated / locked** → first use needs a one-time activation: `edgespeak-cli activate <KEY>` (buyout key or trial code from https://edgespeak.com).
+   - **License not activated / locked** → run `edgespeak-cli trial` to sign in via the browser (new accounts start a free 7-day trial; purchased accounts activate directly), or `edgespeak-cli activate <KEY>` if you already have a key.
    - **Gateway not running (standalone)** → this is fine; `segment` runs against the bundled on-device engine. When the app is running it reuses the warm gateway (proxy) instead.
 3. Run `edgespeak-cli segment`:
 
@@ -75,7 +75,7 @@ Use `segment` alone when you only need **clean sentence text**; add `align` when
 ## Boundaries / gotchas (read this)
 
 - **Requires `edgespeak-cli`.** If the command isn't found, tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed). If it's found but errors, show the error — **do not hand-split the text yourself and pass it off as the model's output**.
-- **First use needs activation.** A fresh install must be activated once with `edgespeak-cli activate <KEY>` (buyout key or trial code from https://edgespeak.com). Without it the on-device engine fails with `license_required`; that error and `status` carry a purchase link — surface it, don't work around it. To pass the key on a single run, use `--license-key <KEY>` (alias `--key`).
+- **First use needs activation.** A fresh install activates once via `edgespeak-cli trial` (browser sign-in; new accounts start a free 7-day trial, purchased accounts activate directly) or `edgespeak-cli activate <KEY>`. Without it the on-device engine fails with `license_required`; the error carries self-serve guidance (open the EdgeSpeak app / `edgespeak-cli trial` / `activate <KEY>`) plus a purchase link — surface it, don't work around it. To pass the key on a single run, use `--license-key <KEY>` (alias `--key`).
 - **It does not add punctuation or capitalization** — it finds boundaries. Output sentences carry the input's casing/spelling (ASR typos stay).
 - **If length constraints don't take effect**, or a run fails while parsing the result, open the EdgeSpeak app and rerun (proxy mode), and capture the command, mode, and CLI version as a bug report — don't hand-split to fake the constraint.
 - **First standalone segment after a model-key rename can need a credential refresh.** If a fresh standalone run fails with `model_key_unavailable` / `device-bound-model-key` / `model_not_found (HTTP 404)`, tell the user to open EdgeSpeak once or refresh their license credentials, then retry. Do not treat it as permanent segmentation failure.

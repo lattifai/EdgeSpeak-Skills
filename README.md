@@ -44,10 +44,15 @@ Update the runtime later with `edgespeak-cli update` (re-fetches the latest self
 First use needs a one-time activation — the on-device engine requires a valid license:
 
 ```bash
+# Sign in via your browser: new accounts start a free 7-day trial automatically,
+# purchased accounts activate this machine directly.
+edgespeak-cli trial
+
+# Or activate directly if you already have a license key
 edgespeak-cli activate <KEY>
 ```
 
-`<KEY>` is your buyout key or trial code (both start with `ES-`, obtained from [edgespeak.com](https://edgespeak.com)). The same command handles either. Activation goes online once to exchange the key for a signed credential stored on your machine. Buyout licenses show as `lifetime`; unless full offline mode is explicitly enabled, `edgespeak-cli status` will also show how long the cached license can work without internet. You can pass the key via `--stdin` (avoids shell history) or the `EDGESPEAK_LICENSE_KEY` environment variable. Run `edgespeak-cli status` any time to see your plan, trial time left, offline cache window, and any lock reason; expired or invalid licenses surface a purchase link at [edgespeak.com](https://edgespeak.com).
+`trial` (alias `login`) opens a browser sign-in and finishes activation automatically; `--no-browser` prints the sign-in link instead, `--json` emits the resulting license status. `<KEY>` is your license key (starts with `ES-`) from [edgespeak.com](https://edgespeak.com). Activation goes online once to exchange the key for a signed credential stored on your machine. Buyout licenses show as `lifetime`; unless full offline mode is explicitly enabled, `edgespeak-cli status` will also show how long the cached license can work without internet. You can pass the key via `--stdin` (avoids shell history) or the `EDGESPEAK_LICENSE_KEY` environment variable. Run `edgespeak-cli status` any time to see your plan, trial time left, offline cache window, and any lock reason; expired or invalid licenses surface a purchase link at [edgespeak.com](https://edgespeak.com).
 
 ## Skills
 
