@@ -41,7 +41,7 @@ Turn an undifferentiated block of text into **natural sentences**, on-device. Th
 
    - `--file` and `--text` are mutually exclusive.
    - Default output (`txt` / stdout): one sentence per line.
-   - `--format json`: an envelope object `{ "text": "<all sentences joined>", "segments": [{ "text": ..., "start"?: ..., "end"?: ... }] }` — the sentence array lives under the top-level `segments` key, it is **not** a bare array.
+   - `--format json`: an envelope object `{ "task": "segment", "text": "<all sentences joined>", "segments": [{ "text": ..., "start"?: ..., "end"?: ... }] }` — the sentence array lives under the top-level `segments` key, it is **not** a bare array.
    - `--threshold <0..1>` tunes boundary sensitivity (default `0.35`). **Lower → more, shorter sentences; higher → fewer, longer sentences.** Adjust only if the default over/under-splits.
    - `--min-chars <N>` / `--max-chars <N>` tune length-constrained splitting.
    - `--license-key <KEY>` (alias `--key`) only to pass a license key explicitly for this run; normally activation already covers it.
@@ -62,6 +62,7 @@ Use `segment` alone when you only need **clean sentence text**; add `align` when
 
 ```json
 {
+  "task": "segment",
   "text": "As you can see it's easy it's simple. And it works.",
   "segments": [
     { "text": "As you can see it's easy it's simple." },
@@ -70,7 +71,7 @@ Use `segment` alone when you only need **clean sentence text**; add `align` when
 }
 ```
 
-`text` is all sentences joined; `segments[]` holds one entry per sentence. With plain-text input the entries carry only `text` (no `start`/`end`); a `speaker` field appears only when the input provided one.
+`task` is always `"segment"`; `text` is all sentences joined; `segments[]` holds one entry per sentence. With plain-text input the entries carry only `text` (no `start`/`end`); a `speaker` field appears only when the input provided one.
 
 ## Boundaries / gotchas (read this)
 
