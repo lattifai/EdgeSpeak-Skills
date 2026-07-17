@@ -49,7 +49,7 @@ Turn text into speech, **entirely on-device — the text never leaves the machin
 | Faster / slower speech | `--speed <N>` | Default 1.0. The local model may support a narrower range than OpenAI's 0.25–4.0. |
 | Language hint | `--language zh-CN` or `--language en-US` | Selects the internal reference for the voice. |
 | Reproducible output | `--seed <N>` | Non-negative. Same seed + same inputs → same audio. The seed actually used is reported in the result JSON (`seed_used`). |
-| A different local model | `-m omnivoice` or `-m voxcpm2` | These are the only two model ids the `speech` command accepts (default `voxcpm2`). |
+| A different local model | `-m omnivoice` or `-m voxcpm2` | These are the only two model ids the `speech` command accepts (default `omnivoice`, same as the app). |
 | Generation quality knobs | `--guidance-scale <0–5>` (default 2), `--inference-steps <1–64>` | Omit `--inference-steps` for the model default. |
 | VoxCPM2 bad-case retry | `--retry-badcase [true\|false]` | VoxCPM2 only. |
 
