@@ -61,11 +61,12 @@ edgespeak-cli activate <KEY>
 | [`edgespeak-transcribe`](skills/edgespeak-transcribe/SKILL.md) | Transcribe audio/video to text / SRT / JSON with timing and sentence-shaping options, fully on-device |
 | [`edgespeak-align`](skills/edgespeak-align/SKILL.md) | Force-align audio against a known transcript → word-level timestamps (karaoke captions, clip cutting, dubbing) |
 | [`edgespeak-segment`](skills/edgespeak-segment/SKILL.md) | Split a wall of (even unpunctuated) text into natural sentences |
+| [`edgespeak-broadcast`](skills/edgespeak-broadcast/SKILL.md) | Turn text into speech fully on-device (Broadcast): WAV synthesis with selectable or cloned voices, style instructions, and reproducible seeds |
 | [`edgespeak-karaoke`](skills/edgespeak-karaoke/SKILL.md) | Create styled word-highlighted ASS captions, preview presets on real video frames, and optionally burn them into the source container where practical |
 
 ## How it works
 
-The transcription, alignment, and segmentation skills shell out to `edgespeak-cli` (`transcribe` / `align` / `segment`). The karaoke skill prefers a configured EdgeSpeak MCP server and uses the CLI as its fallback. When the EdgeSpeak desktop app is running, CLI calls use its local gateway (OpenAI-compatible, `127.0.0.1:1117`, local-only route) and reuse the warm model (proxy mode). When the app is not running, the CLI launches the bundled on-device engine itself (standalone mode) — this is a normal mode, not an error. Either way audio is processed on-device — nothing is uploaded.
+The transcription, alignment, segmentation, and broadcast skills shell out to `edgespeak-cli` (`transcribe` / `align` / `segment` / `speech`). The karaoke skill prefers a configured EdgeSpeak MCP server and uses the CLI as its fallback. When the EdgeSpeak desktop app is running, CLI calls use its local gateway (OpenAI-compatible, `127.0.0.1:1117`, local-only route) and reuse the warm model (proxy mode). When the app is not running, the CLI launches the bundled on-device engine itself (standalone mode) — this is a normal mode, not an error. Either way audio is processed on-device — nothing is uploaded.
 
 ## License
 
