@@ -23,7 +23,7 @@ Turn audio/video into a transcript, **entirely on-device — the audio never lea
    ```
 
    - **Command not found** → the CLI isn't installed. Tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed).
-   - **License not activated / locked** → run `edgespeak-cli trial` to sign in via the browser (new accounts start a free 7-day trial; purchased accounts activate directly), or `edgespeak-cli activate <KEY>` if you already have a key.
+   - **License not activated / locked** → run `edgespeak-cli login` to sign in via the browser (new accounts start a free 7-day trial; purchased accounts activate directly), or `edgespeak-cli activate <KEY>` if you already have a key.
    - **Remote active ASR backend** → file transcription is local-only; ask the user to switch EdgeSpeak to the local engine before transcribing.
    - **Gateway not running (standalone)** → this is fine; `transcribe` will launch the bundled on-device engine itself.
 3. Run `edgespeak-cli` and pass requested tuning options explicitly:
@@ -99,7 +99,7 @@ When to still reach for the separate skills: use `edgespeak-align` only when you
 ## Boundaries / gotchas (read this)
 
 - **Requires `edgespeak-cli`.** If the command isn't found, tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed). If it's found but errors, show the error — **do not fabricate a transcript under any circumstances**.
-- **First use needs activation.** A fresh install activates once via `edgespeak-cli trial` (browser sign-in; new accounts start a free 7-day trial, purchased accounts activate directly) or `edgespeak-cli activate <KEY>`. Without it the on-device engine fails with `license_required`; the error carries self-serve guidance (open the EdgeSpeak app / `edgespeak-cli trial` / `activate <KEY>`) plus a purchase link — surface it, don't work around it. To pass the key explicitly on a single run, use `--license-key <KEY>` (alias `--key`).
+- **First use needs activation.** A fresh install activates once via `edgespeak-cli login` (browser sign-in; new accounts start a free 7-day trial, purchased accounts activate directly) or `edgespeak-cli activate <KEY>`. Without it the on-device engine fails with `license_required`; the error carries self-serve guidance (open the EdgeSpeak app / `edgespeak-cli login` / `activate <KEY>`) plus a purchase link — surface it, don't work around it. To pass the key explicitly on a single run, use `--license-key <KEY>` (alias `--key`).
 - **Local-only for file transcription**: `edgespeak-cli transcribe` refuses remote/cloud ASR backends even if the gateway lists them. If `edgespeak-cli status` shows `transcribe` as a remote backend, ask the user to switch EdgeSpeak to the local engine before transcribing.
 - **First run in standalone may download a model.** With the app not running, the first transcription downloads the on-device model on demand (progress on stderr, can take tens of seconds). **Don't assume it hung.**
 - **Missing model over the gateway API.** With the app running, `/v1/audio/transcriptions` auto-downloads a missing local model (bounded wait, on by default). If it is not ready within the request budget you get HTTP 503 with code `model_downloading` (retry after `Retry-After`) or `model_not_downloaded` (auto-download disabled — download it in EdgeSpeak → Models or enable the setting). Treat both as retryable, not permanent failures.

@@ -45,13 +45,13 @@ edgespeak-cli status
 
 ```bash
 # 浏览器登录：新账号自动获得 7 天免费试用，已购账号直接激活本机
-edgespeak-cli trial
+edgespeak-cli login
 
 # 已有授权 Key 时也可直接激活
 edgespeak-cli activate <KEY>
 ```
 
-`trial` (别名 `login`) 打开浏览器登录并自动完成激活；`--no-browser` 只打印登录链接，`--json` 输出激活后的授权状态。`<KEY>` 是你的授权 Key (以 `ES-` 开头，来自 [edgespeak.com](https://edgespeak.com))。激活会联网一次，用 Key 换取签名凭据并落地本机。买断授权会显示为 `lifetime`；除非显式开启 full offline mode，`edgespeak-cli status` 还会显示缓存授权可在无网络下工作的时间窗口。也可以用 `--stdin` 传 Key (避免进 shell 历史) 或环境变量 `EDGESPEAK_LICENSE_KEY`。随时可跑 `edgespeak-cli status` 查看授权方案、试用剩余时间、离线缓存窗口和锁定原因；过期或失效时会给出 [edgespeak.com](https://edgespeak.com) 的购买链接。
+`login` (长期别名 `trial`) 打开浏览器登录并自动完成激活；`--no-browser` 只打印登录链接，`--json` 输出激活后的授权状态。`<KEY>` 是你的授权 Key (以 `ES-` 开头，来自 [edgespeak.com](https://edgespeak.com))。激活会联网一次，用 Key 换取签名凭据并落地本机。买断授权会显示为 `lifetime`；除非显式开启 full offline mode，`edgespeak-cli status` 还会显示缓存授权可在无网络下工作的时间窗口。也可以用 `--stdin` 传 Key (避免进 shell 历史) 或环境变量 `EDGESPEAK_LICENSE_KEY`。随时可跑 `edgespeak-cli status` 查看授权方案、试用剩余时间、离线缓存窗口和锁定原因；过期或失效时会给出 [edgespeak.com](https://edgespeak.com) 的购买链接。
 
 ## 包含的 Skill
 

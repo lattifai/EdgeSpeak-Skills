@@ -22,7 +22,7 @@ Turn text into speech, **entirely on-device — the text never leaves the machin
    ```
 
    - **Command not found** → the CLI isn't installed. Tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed).
-   - **License not activated / locked** → run `edgespeak-cli trial` to sign in via the browser (new accounts start a free 7-day trial; purchased accounts activate directly), or `edgespeak-cli activate <KEY>` if you already have a key.
+   - **License not activated / locked** → run `edgespeak-cli login` to sign in via the browser (new accounts start a free 7-day trial; purchased accounts activate directly), or `edgespeak-cli activate <KEY>` if you already have a key.
    - **Gateway not running (standalone)** → this is fine; `speech` will launch the bundled on-device engine itself.
 2. Optionally pick a voice. List the local voice library (JSON to stdout):
 
@@ -106,7 +106,7 @@ edgespeak-cli voices delete "My voice"
 ## Boundaries / gotchas (read this)
 
 - **Requires `edgespeak-cli` 0.3.0+.** Older CLI versions have no `speech` / `voices` commands — if they are missing from `edgespeak-cli --help`, tell the user to update (`edgespeak-cli update`, or reinstall via `curl -fsSL https://edgespeak.com/install.sh | sh`).
-- **First use needs activation** (`edgespeak-cli trial` or `activate <KEY>`), same as the other EdgeSpeak skills. Surface license errors; don't work around them.
+- **First use needs activation** (`edgespeak-cli login` or `activate <KEY>`), same as the other EdgeSpeak skills. Surface license errors; don't work around them.
 - **Only `omnivoice` and `voxcpm2` work here.** The EdgeSpeak app's Broadcast workspace has additional model-specific features (voice design, and app-managed models such as Qwen3-TTS) that are **not** available through `speech` — passing other model ids fails with `model not found`. If the user wants voice design, point them to the app's Broadcast workspace.
 - **Synthesis is slower than real time on most machines** (a short sentence can take ~10–20 s in standalone mode; the first run may also decrypt/load or download the model). **Don't assume it hung.**
 - **Output is WAV only.** If the user wants MP3/M4A/OGG, synthesize WAV first and convert with `ffmpeg` afterwards.
