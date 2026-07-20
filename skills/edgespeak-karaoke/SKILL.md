@@ -126,6 +126,30 @@ Hard subtitles always require video re-encoding; preserving the container does n
 source video codec. Use `--format mp4|mov|mkv|webm` or an explicit `-o` only when the user requests a
 different delivery format. Use `--overwrite` only with authorization.
 
+### Match the source bitrate
+
+Re-encoding at a fixed quality ignores what the source shipped at, and the gap can be large: burning
+CRF 21 into a lean 1.5 Mbps AV1 file yields a 4.2 Mbps H.264 copy — 2.8x the source bitrate, nearly
+3x the file size, with no visible gain. The script therefore probes the source and derives an
+`-maxrate` / `-bufsize` ceiling from its bitrate, scaled by how much less efficient the output codec
+is (H.264 needs roughly 1.6x the bitrate of AV1 for comparable quality). Quality still comes from
+CRF; the cap only stops it from overshooting the source.
+
+This is automatic for x264 targets. VP9/WebM is left alone because the `.webm` profile pins
+`-b:v 0` for constant-quality mode. The report includes `source_video_bitrate`, `video_bitrate`, and
+the `bitrate_cap` decision — compare the first two when reporting the result.
+
+Override only when the user asks for a specific bitrate or quality level:
+
+- `--crf <n>` sets the quality target (lower is better, 21 default for H.264).
+- `--maxrate <rate>` replaces the derived ceiling, e.g. `--maxrate 4M`.
+- `--maxrate none` disables the cap entirely and restores plain CRF behavior.
+
+Bitrate is also the lever for file size. When a user objects to output size, quote the source
+bitrate alongside the output bitrate before proposing a change, and remember that flat illustrated
+or screen-recorded footage compresses far harder than live action — subtitle text itself stays crisp
+even at CRF 28, so it is never the constraint.
+
 ## CLI fallback
 
 If MCP is unavailable but `edgespeak-cli` is installed, use the single-call equivalent:
@@ -144,6 +168,8 @@ that the same transcribe command just produced.
 - Keep `start_margin=0` and `end_margin=0` so adjacent ASS events do not overlap.
 - Preserve the original media, transcript artifact, and ASS unless replacement is explicit.
 - Verify the hard-subbed output duration, stream count, output codec, and zero subtitle streams.
+- Compare the output bitrate against the source before reporting; a multiple of the source bitrate
+  means the encode overshot, not that the source was low quality.
 - Extract an active-cue frame and visually verify that text is burned into pixels and readable.
 - Report the ASS path, preview paths if any, video path, selected preset, container decision, codecs,
   duration, size, and validation result.
