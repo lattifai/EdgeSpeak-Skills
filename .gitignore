@@ -22,3 +22,5 @@ target
 
 # skill-creator evaluation runs — kept locally for review, never committed
 evals/
+
+.claude/
