@@ -18,7 +18,7 @@ npx skills add lattifai/EdgeSpeak-Skills --agent codex
 
 ## Requirements
 
-Most skills shell out to `edgespeak-cli`, a self-contained on-device transcription runtime (macOS arm64). The karaoke skill uses configured EdgeSpeak MCP tools when available and falls back to the same CLI. You can get the runtime in either of two ways:
+Most skills shell out to `edgespeak-cli`, a self-contained on-device transcription and speech runtime for **macOS Apple Silicon** and **Linux x86_64**. The karaoke skill uses configured EdgeSpeak MCP tools when available and falls back to the same CLI. You can get the runtime in either of two ways:
 
 - **Self-contained CLI — no app required:**
 
@@ -26,7 +26,7 @@ Most skills shell out to `edgespeak-cli`, a self-contained on-device transcripti
   curl -fsSL https://edgespeak.com/install.sh | sh
   ```
 
-  This installs a self-contained runtime (CLI + on-device engine + dependencies) under `~/.edgespeak/runtime` and symlinks `edgespeak-cli` into `~/.local/bin` (PATH is set up for you).
+  This installs a self-contained runtime (CLI + on-device engine + dependencies) under `~/.edgespeak/runtime` and symlinks `edgespeak-cli` into `~/.local/bin` (PATH is set up for you). On Linux the installer detects NVIDIA GPUs (via `nvidia-smi`) and automatically installs a CUDA-enabled runtime matched to your GPU generation, falling back to the CPU build otherwise; set `EDGESPEAK_LINUX_PROFILE=cpu|cuda-legacy|cuda-modern|cuda-blackwell` to override the detection. At run time, `--device cpu|cuda|cuda:<N>|metal|auto` on `transcribe` / `align` / `segment` / `speech` selects the compute backend (standalone mode only).
 
 - **Desktop app:** install [EdgeSpeak](https://edgespeak.com) from the website — it ships the same `edgespeak-cli`.
 
@@ -44,15 +44,20 @@ Update the runtime later with `edgespeak-cli update` (re-fetches the latest self
 First use needs a one-time activation — the on-device engine requires a valid license:
 
 ```bash
-# Sign in via your browser: new accounts start a free 7-day trial automatically,
-# purchased accounts activate this machine directly.
+# Sign in via your browser: purchased accounts activate this machine directly,
+# new accounts start a free 7-day trial automatically.
 edgespeak-cli login
+
+# No account and no browser at hand? Start an instant anonymous 7-day trial
+edgespeak-cli trial
 
 # Or activate directly if you already have a license key
 edgespeak-cli activate <KEY>
 ```
 
-`login` (long-term alias `trial`) opens a browser sign-in and finishes activation automatically; `--no-browser` prints the sign-in link instead, `--json` emits the resulting license status. `<KEY>` is your license key (starts with `ES-`) from [edgespeak.com](https://edgespeak.com). Activation goes online once to exchange the key for a signed credential stored on your machine. Buyout licenses show as `lifetime`; unless full offline mode is explicitly enabled, `edgespeak-cli status` will also show how long the cached license can work without internet. You can pass the key via `--stdin` (avoids shell history) or the `EDGESPEAK_LICENSE_KEY` environment variable. Run `edgespeak-cli status` any time to see your plan, trial time left, offline cache window, and any lock reason; expired or invalid licenses surface a purchase link at [edgespeak.com](https://edgespeak.com).
+`login` opens a browser sign-in and finishes activation automatically — and if the device is already on the anonymous trial, signing in replaces the trial with your account credentials; `--no-browser` prints the sign-in link instead, `--json` emits the resulting license status. `trial` starts an anonymous, device-bound trial with zero friction (one trial per device; trial transcription has a daily time cap) — if `edgespeak-cli trial --help` describes a browser sign-in, the installed CLI predates the instant trial — run `edgespeak-cli update` first. `<KEY>` is your license key (starts with `ES-`) from [edgespeak.com](https://edgespeak.com). Activation goes online once to exchange the key for a signed credential stored on your machine. Buyout licenses show as `lifetime`; unless full offline mode is explicitly enabled, `edgespeak-cli status` will also show how long the cached license can work without internet. You can pass the key via `--stdin` (avoids shell history) or the `EDGESPEAK_LICENSE_KEY` environment variable. Run `edgespeak-cli status` any time to see your plan, trial time left, offline cache window, and any lock reason; expired or invalid licenses surface a purchase link at [edgespeak.com](https://edgespeak.com).
+
+For headless or air-gapped machines: `edgespeak-cli models download --all` pre-downloads the default transcription / alignment / segmentation models (standalone only — quit the EdgeSpeak app first), and lifetime licenses can then run `edgespeak-cli offline enable` to keep working fully offline.
 
 ## Skills
 
@@ -61,7 +66,7 @@ edgespeak-cli activate <KEY>
 | [`edgespeak-transcribe`](skills/edgespeak-transcribe/SKILL.md) | Transcribe audio/video to text / SRT / JSON with timing and sentence-shaping options, fully on-device |
 | [`edgespeak-align`](skills/edgespeak-align/SKILL.md) | Force-align audio against a known transcript → word-level timestamps (karaoke captions, clip cutting, dubbing) |
 | [`edgespeak-segment`](skills/edgespeak-segment/SKILL.md) | Split a wall of (even unpunctuated) text into natural sentences |
-| [`edgespeak-broadcast`](skills/edgespeak-broadcast/SKILL.md) | Turn text into speech fully on-device (Broadcast): WAV synthesis with selectable or cloned voices, style instructions, and reproducible seeds |
+| [`edgespeak-broadcast`](skills/edgespeak-broadcast/SKILL.md) | Turn text into speech fully on-device (Broadcast): WAV synthesis with selectable, cloned, or text-designed voices, style instructions, and reproducible seeds |
 | [`edgespeak-karaoke`](skills/edgespeak-karaoke/SKILL.md) | Create styled word-highlighted ASS captions, preview presets on real video frames, and optionally burn them into the source container where practical |
 
 ## How it works

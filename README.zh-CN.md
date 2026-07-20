@@ -18,7 +18,7 @@ npx skills add lattifai/EdgeSpeak-Skills --agent codex
 
 ## 前置要求
 
-大部分 Skill 调用 `edgespeak-cli` —— 一个自包含的本机转录运行时 (macOS arm64)。卡拉 OK Skill 优先使用已配置的 EdgeSpeak MCP 工具，并回退到同一个 CLI。本地运行时有两种获取方式：
+大部分 Skill 调用 `edgespeak-cli` —— 一个自包含的本机转录与语音合成运行时，支持 **macOS Apple Silicon** 和 **Linux x86_64**。卡拉 OK Skill 优先使用已配置的 EdgeSpeak MCP 工具，并回退到同一个 CLI。本地运行时有两种获取方式：
 
 - **自包含 CLI —— 无需桌面 App：**
 
@@ -26,7 +26,7 @@ npx skills add lattifai/EdgeSpeak-Skills --agent codex
   curl -fsSL https://edgespeak.com/install.sh | sh
   ```
 
-  会把自包含运行时 (CLI + 本地引擎 + 依赖) 安装到 `~/.edgespeak/runtime`，并把 `edgespeak-cli` 软链进 `~/.local/bin` (PATH 自动配好)。
+  会把自包含运行时 (CLI + 本地引擎 + 依赖) 安装到 `~/.edgespeak/runtime`，并把 `edgespeak-cli` 软链进 `~/.local/bin` (PATH 自动配好)。Linux 上安装脚本会探测 NVIDIA GPU (经 `nvidia-smi`) 并自动安装匹配 GPU 代际的 CUDA 运行时，无 GPU 时回落 CPU 构建；可用 `EDGESPEAK_LINUX_PROFILE=cpu|cuda-legacy|cuda-modern|cuda-blackwell` 覆盖探测结果。运行时可在 `transcribe` / `align` / `segment` / `speech` 上用 `--device cpu|cuda|cuda:<N>|metal|auto` 选择计算后端 (仅 standalone 模式)。
 
 - **桌面 App：** 从官网安装 [EdgeSpeak](https://edgespeak.com)，它自带同一个 `edgespeak-cli`。
 
@@ -44,14 +44,19 @@ edgespeak-cli status
 首次使用需要一次性激活 —— 本地引擎需要有效授权：
 
 ```bash
-# 浏览器登录：新账号自动获得 7 天免费试用，已购账号直接激活本机
+# 浏览器登录：已购账号直接激活本机，新账号自动获得 7 天免费试用
 edgespeak-cli login
+
+# 没有账号、也不方便开浏览器？立即开通匿名 7 天试用
+edgespeak-cli trial
 
 # 已有授权 Key 时也可直接激活
 edgespeak-cli activate <KEY>
 ```
 
-`login` (长期别名 `trial`) 打开浏览器登录并自动完成激活；`--no-browser` 只打印登录链接，`--json` 输出激活后的授权状态。`<KEY>` 是你的授权 Key (以 `ES-` 开头，来自 [edgespeak.com](https://edgespeak.com))。激活会联网一次，用 Key 换取签名凭据并落地本机。买断授权会显示为 `lifetime`；除非显式开启 full offline mode，`edgespeak-cli status` 还会显示缓存授权可在无网络下工作的时间窗口。也可以用 `--stdin` 传 Key (避免进 shell 历史) 或环境变量 `EDGESPEAK_LICENSE_KEY`。随时可跑 `edgespeak-cli status` 查看授权方案、试用剩余时间、离线缓存窗口和锁定原因；过期或失效时会给出 [edgespeak.com](https://edgespeak.com) 的购买链接。
+`login` 打开浏览器登录并自动完成激活——若本机已在匿名试用中，登录会用你的账号凭据替换试用授权；`--no-browser` 只打印登录链接，`--json` 输出激活后的授权状态。`trial` 零摩擦开通匿名设备试用 (一台设备一次；试用转录有每日时长上限)；若 `edgespeak-cli trial --help` 显示的是浏览器登录说明，说明当前安装的 CLI 早于即时试用功能——先跑 `edgespeak-cli update` 更新。`<KEY>` 是你的授权 Key (以 `ES-` 开头，来自 [edgespeak.com](https://edgespeak.com))。激活会联网一次，用 Key 换取签名凭据并落地本机。买断授权会显示为 `lifetime`；除非显式开启 full offline mode，`edgespeak-cli status` 还会显示缓存授权可在无网络下工作的时间窗口。也可以用 `--stdin` 传 Key (避免进 shell 历史) 或环境变量 `EDGESPEAK_LICENSE_KEY`。随时可跑 `edgespeak-cli status` 查看授权方案、试用剩余时间、离线缓存窗口和锁定原因；过期或失效时会给出 [edgespeak.com](https://edgespeak.com) 的购买链接。
+
+无人值守或离线机器：先用 `edgespeak-cli models download --all` 预下载默认的转录 / 对齐 / 分句模型 (仅 standalone —— 需先退出 EdgeSpeak App)，买断授权随后可 `edgespeak-cli offline enable` 完全离线工作。
 
 ## 包含的 Skill
 
@@ -60,7 +65,7 @@ edgespeak-cli activate <KEY>
 | [`edgespeak-transcribe`](skills/edgespeak-transcribe/SKILL.md) | 把音视频转成文字 / SRT / JSON，并支持时间轴与分句参数，全程本地 |
 | [`edgespeak-align`](skills/edgespeak-align/SKILL.md) | 把音频与已有文稿做强制对齐 → 词级时间戳 (逐词高亮字幕、按句剪辑、配音对齐) |
 | [`edgespeak-segment`](skills/edgespeak-segment/SKILL.md) | 把一大段 (甚至无标点的) 文字切成自然句子 |
-| [`edgespeak-broadcast`](skills/edgespeak-broadcast/SKILL.md) | 把文字变成语音 (播报)，全程本地：可选或克隆声音、风格指令、可复现种子，输出 WAV |
+| [`edgespeak-broadcast`](skills/edgespeak-broadcast/SKILL.md) | 把文字变成语音 (播报)，全程本地：可选、可克隆或按文字描述设计声音，支持风格指令与可复现种子，输出 WAV |
 | [`edgespeak-karaoke`](skills/edgespeak-karaoke/SKILL.md) | 生成带样式的逐词高亮 ASS 字幕，可用真实视频帧预览预设，并尽量按源容器烧录硬字幕 |
 
 ## 原理

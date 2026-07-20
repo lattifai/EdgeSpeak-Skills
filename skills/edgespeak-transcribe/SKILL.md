@@ -22,8 +22,8 @@ Turn audio/video into a transcript, **entirely on-device — the audio never lea
    edgespeak-cli status
    ```
 
-   - **Command not found** → the CLI isn't installed. Tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed).
-   - **License not activated / locked** → run `edgespeak-cli login` to sign in via the browser (new accounts start a free 7-day trial; purchased accounts activate directly), or `edgespeak-cli activate <KEY>` if you already have a key.
+   - **Command not found** → the CLI isn't installed. Tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed; macOS Apple Silicon and Linux x86_64 — on Linux the installer auto-detects NVIDIA GPUs and installs a CUDA-enabled runtime).
+   - **License not activated / locked** → run `edgespeak-cli login` to sign in via the browser (purchased accounts activate this machine directly, new accounts start a free 7-day trial; signing in also replaces an anonymous trial with your account credentials), or `edgespeak-cli activate <KEY>` with an existing key. No account and no browser at hand? `edgespeak-cli trial` starts an instant anonymous 7-day trial (device-bound, one per device; trial transcription has a daily time cap). (If `edgespeak-cli trial --help` describes a browser sign-in, the installed CLI predates the instant trial — run `edgespeak-cli update` first.) Non-interactive runs (agents, pipes, CI) fail fast with `license_required` instead of prompting — activate first, then rerun.
    - **Remote active ASR backend** → file transcription is local-only; ask the user to switch EdgeSpeak to the local engine before transcribing.
    - **Gateway not running (standalone)** → this is fine; `transcribe` will launch the bundled on-device engine itself.
 3. Run `edgespeak-cli` and pass requested tuning options explicitly:
@@ -47,6 +47,8 @@ Pass through user-requested timing and sentence-shaping knobs instead of silentl
 | --- | --- | --- |
 | Word-level timing, karaoke timing, word-accurate structured output | `-o out.json` or `--format json` | CLI JSON is the same shape as the gateway's `verbose_json` transcription response; when word timing is available, words are stored under each segment's `words` array (`segments[].words[]`). There is no top-level `words[]`. |
 | Subtitle cues from real speech-window timing | `-o out.srt` or `--format srt` | SRT uses the sentence/caption segments produced by the local file flow. |
+| Explicit timestamp granularity | `--timestamps none\|word\|segment` | Comma-separated or repeated for multiple granularities (alias `--timestamp-granularities`). Defaults adapt to the output format: `json`→`word`, `srt`→`segment`, `txt`→`none`. `word` is only valid with `json` output; `none` cannot be combined with other values. |
+| Run on a specific compute backend | `--device cpu\|cuda\|cuda:<N>\|metal\|auto` | Case-insensitive; `cuda:<N>` selects GPU N, `metal` (alias `mps`) is macOS, `gpu` means Metal on macOS / CUDA elsewhere. **Standalone mode only** — with the app gateway reachable the flag errors explicitly; quit the app (or change `--base-url`) to choose a backend. |
 | Minimum / maximum sentence length | `--min-chars <N>` / `--max-chars <N>` | These tune semantic sentence shaping. They work in both proxy mode and standalone mode. |
 | Leading / trailing caption padding | `--start-margin <SECS>` / `--end-margin <SECS>` | Seconds, clamped to the supported range (currently 0.0-5.0). They apply to timestamped transcript windows, not plain text segmentation. |
 | Specific local transcription model | `--model <model-id>` | Use only when the user names a model or asks to override the configured local model. |
@@ -59,7 +61,7 @@ CLI `json` output is **exactly the gateway's `verbose_json` response shape** —
 {
   "task": "transcribe",
   "duration": 19.69,
-  "language": "en",
+  "language": "English",
   "text": "Lattice AI is a high-performance engine ...",
   "segments": [
     { "id": 0, "start": 0.0, "end": 19.69, "text": "Lattice AI is a high-performance engine ...",
@@ -98,10 +100,11 @@ When to still reach for the separate skills: use `edgespeak-align` only when you
 
 ## Boundaries / gotchas (read this)
 
-- **Requires `edgespeak-cli`.** If the command isn't found, tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed). If it's found but errors, show the error — **do not fabricate a transcript under any circumstances**.
-- **First use needs activation.** A fresh install activates once via `edgespeak-cli login` (browser sign-in; new accounts start a free 7-day trial, purchased accounts activate directly) or `edgespeak-cli activate <KEY>`. Without it the on-device engine fails with `license_required`; the error carries self-serve guidance (open the EdgeSpeak app / `edgespeak-cli login` / `activate <KEY>`) plus a purchase link — surface it, don't work around it. To pass the key explicitly on a single run, use `--license-key <KEY>` (alias `--key`).
+- **Requires `edgespeak-cli`.** If the command isn't found, tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed; macOS Apple Silicon and Linux x86_64, CUDA auto-detected on Linux). If it's found but errors, show the error — **do not fabricate a transcript under any circumstances**.
+- **First use needs activation.** A fresh install activates once via `edgespeak-cli login` (browser sign-in; purchased accounts activate directly, new accounts start the trial, and signing in upgrades an anonymous trial to your account), `edgespeak-cli activate <KEY>`, or `edgespeak-cli trial` (instant anonymous 7-day trial, no browser or account; one per device, daily transcription cap). Without it the on-device engine fails with `license_required`; the error carries self-serve guidance plus a purchase link — surface it, don't work around it. In an interactive terminal, standalone commands offer to sign in and continue automatically; non-interactive runs (agents, pipes, CI) fail fast instead of prompting. To pass the key explicitly on a single run, use `--license-key <KEY>` (alias `--key`).
 - **Local-only for file transcription**: `edgespeak-cli transcribe` refuses remote/cloud ASR backends even if the gateway lists them. If `edgespeak-cli status` shows `transcribe` as a remote backend, ask the user to switch EdgeSpeak to the local engine before transcribing.
-- **First run in standalone may download a model.** With the app not running, the first transcription downloads the on-device model on demand (progress on stderr, can take tens of seconds). **Don't assume it hung.**
+- **First run in standalone may download a model.** With the app not running, the first transcription downloads the on-device model on demand (progress on stderr, can take tens of seconds). **Don't assume it hung.** To avoid the wait, pre-download with `edgespeak-cli models download --all` (or a specific id such as `lattice-2-flash`) — standalone only, quit the EdgeSpeak app first; `--json` emits a `{"downloaded":[…],"skipped":[…],"failed":[…]}` envelope. `edgespeak-cli models list` shows each model's `downloaded` status in standalone runs.
+- **`--device` only works in standalone mode.** With the app running the CLI errors explicitly (the running app controls its own backend). An unavailable backend (e.g. `cuda` on a CPU-only install, `metal` off macOS) also errors explicitly — it never silently falls back.
 - **Missing model over the gateway API.** With the app running, `/v1/audio/transcriptions` auto-downloads a missing local model (bounded wait, on by default). If it is not ready within the request budget you get HTTP 503 with code `model_downloading` (retry after `Retry-After`) or `model_not_downloaded` (auto-download disabled — download it in EdgeSpeak → Models or enable the setting). Treat both as retryable, not permanent failures.
 - **Word-level timing depends on language**: for supported languages, `json` can carry real per-word timestamps (inline forced alignment). For unsupported languages you get **segment-level** (VAD-split) timing only — don't claim per-word timing there.
 - **Check that word timing actually arrived.** If the `json` output comes back as a single whole-audio segment with no `words` array, the on-device post-processing didn't run — open the EdgeSpeak app and rerun (proxy mode). Never pad missing word timing yourself.

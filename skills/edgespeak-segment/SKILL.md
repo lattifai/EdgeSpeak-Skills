@@ -23,8 +23,8 @@ Turn an undifferentiated block of text into **natural sentences**, on-device. Th
    edgespeak-cli status
    ```
 
-   - **Command not found** → the CLI isn't installed. Tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed).
-   - **License not activated / locked** → run `edgespeak-cli login` to sign in via the browser (new accounts start a free 7-day trial; purchased accounts activate directly), or `edgespeak-cli activate <KEY>` if you already have a key.
+   - **Command not found** → the CLI isn't installed. Tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed; macOS Apple Silicon and Linux x86_64 — on Linux the installer auto-detects NVIDIA GPUs and installs a CUDA-enabled runtime).
+   - **License not activated / locked** → run `edgespeak-cli login` to sign in via the browser (purchased accounts activate this machine directly, new accounts start a free 7-day trial; signing in also replaces an anonymous trial with your account credentials), or `edgespeak-cli activate <KEY>` with an existing key. No account and no browser at hand? `edgespeak-cli trial` starts an instant anonymous 7-day trial (device-bound, one per device). (If `edgespeak-cli trial --help` describes a browser sign-in, the installed CLI predates the instant trial — run `edgespeak-cli update` first.) Non-interactive runs (agents, pipes, CI) fail fast with `license_required` instead of prompting.
    - **Gateway not running (standalone)** → this is fine; `segment` runs against the bundled on-device engine. When the app is running it reuses the warm gateway (proxy) instead.
 3. Run `edgespeak-cli segment`:
 
@@ -44,6 +44,7 @@ Turn an undifferentiated block of text into **natural sentences**, on-device. Th
    - `--format json`: an envelope object `{ "task": "segment", "text": "<all sentences joined>", "segments": [{ "text": ..., "start"?: ..., "end"?: ... }] }` — the sentence array lives under the top-level `segments` key, it is **not** a bare array.
    - `--threshold <0..1>` tunes boundary sensitivity (default `0.35`). **Lower → more, shorter sentences; higher → fewer, longer sentences.** Adjust only if the default over/under-splits.
    - `--min-chars <N>` / `--max-chars <N>` tune length-constrained splitting.
+   - `--device cpu|cuda|cuda:<N>|metal|auto` picks the compute backend (case-insensitive; `metal` is macOS, `gpu` means Metal on macOS / CUDA elsewhere). **Standalone mode only** — with the app gateway reachable the flag errors explicitly; an unavailable backend also errors rather than silently falling back.
    - `--license-key <KEY>` (alias `--key`) only to pass a license key explicitly for this run; normally activation already covers it.
 
 ## Timestamps: read this
@@ -75,8 +76,9 @@ Use `segment` alone when you only need **clean sentence text**; add `align` when
 
 ## Boundaries / gotchas (read this)
 
-- **Requires `edgespeak-cli`.** If the command isn't found, tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed). If it's found but errors, show the error — **do not hand-split the text yourself and pass it off as the model's output**.
-- **First use needs activation.** A fresh install activates once via `edgespeak-cli login` (browser sign-in; new accounts start a free 7-day trial, purchased accounts activate directly) or `edgespeak-cli activate <KEY>`. Without it the on-device engine fails with `license_required`; the error carries self-serve guidance (open the EdgeSpeak app / `edgespeak-cli login` / `activate <KEY>`) plus a purchase link — surface it, don't work around it. To pass the key on a single run, use `--license-key <KEY>` (alias `--key`).
+- **Requires `edgespeak-cli`.** If the command isn't found, tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no desktop app needed; macOS Apple Silicon and Linux x86_64, CUDA auto-detected on Linux). If it's found but errors, show the error — **do not hand-split the text yourself and pass it off as the model's output**.
+- **First use needs activation.** A fresh install activates once via `edgespeak-cli login` (browser sign-in; also upgrades an anonymous trial to your account), `edgespeak-cli activate <KEY>`, or `edgespeak-cli trial` (instant anonymous 7-day trial, no browser or account; one per device). Without it the on-device engine fails with `license_required`; the error carries self-serve guidance plus a purchase link — surface it, don't work around it. In an interactive terminal, standalone commands offer to sign in and continue automatically; non-interactive runs (agents, pipes, CI) fail fast instead of prompting. To pass the key on a single run, use `--license-key <KEY>` (alias `--key`).
+- **Pre-download the segmenter model for headless machines**: `edgespeak-cli models download lattice-1-text-segmenter` (or `--all`) fetches it ahead of time — standalone only, quit the EdgeSpeak app first.
 - **It does not add punctuation or capitalization** — it finds boundaries. Output sentences carry the input's casing/spelling (ASR typos stay).
 - **If length constraints don't take effect**, or a run fails while parsing the result, open the EdgeSpeak app and rerun (proxy mode), and capture the command, mode, and CLI version as a bug report — don't hand-split to fake the constraint.
 - **First standalone segment after a model-key rename can need a credential refresh.** If a fresh standalone run fails with `model_key_unavailable` / `device-bound-model-key` / `model_not_found (HTTP 404)`, tell the user to open EdgeSpeak once or refresh their license credentials, then retry. Do not treat it as permanent segmentation failure.
