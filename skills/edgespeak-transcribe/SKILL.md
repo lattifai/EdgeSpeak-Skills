@@ -13,6 +13,13 @@ Turn audio/video into a transcript, **entirely on-device — the audio never lea
 - Desired output: stdout text, `.txt`, `.json`, or `.srt`.
 - Any requested model, word timing, sentence length, or subtitle padding options.
 
+**If the user wants subtitles or captions, ask about cue shaping before the first run.** Cue length is not guessable from the request, and discovering it afterwards costs a whole re-transcription. Ask once, in a single message:
+
+- Max characters per cue? (`--max-chars`; roughly 60-90 reads well, and the default leaves whole sentences intact.)
+- Any minimum length or leading/trailing padding? (`--min-chars`, `--start-margin`, `--end-margin`.)
+
+Then run `transcribe` with the answers applied. Do not produce a plain `-o out.srt` first and re-run with shaping after.
+
 ## How to do it
 
 1. Confirm the path to the file to transcribe.
@@ -38,6 +45,18 @@ Turn audio/video into a transcript, **entirely on-device — the audio never lea
    - Use `--model <model-id>` only when the user explicitly asks for a specific local EdgeSpeak model.
    - Use `--license-key <KEY>` (alias `--key`) only to pass a license key explicitly for this run; normally activation (above) already covers it.
 4. With the transcript in hand, summarize / clean up / translate as the user needs.
+
+## One inference pass per media file
+
+Transcription is the expensive step; output format and sentence shaping are downstream of it. Settle the output shape **before** the first run, and whenever timing matters at all, make a word-level JSON the master artifact:
+
+```bash
+edgespeak-cli transcribe media.mp4 -o out.json --max-chars 80   # text + segments + words[]
+```
+
+That JSON already contains every cue boundary you could need — `segments[].words[]` carries real `start`/`end` per word. SRT, ASS, karaoke highlighting, clip ranges, and a re-split at a different cue length are all derivable from it **without touching the audio again**. To re-split, run `edgespeak-segment` on the transcript text (text-only, seconds not minutes) and map the returned sentences back onto the JSON word timings by character offset.
+
+Re-running `transcribe` on the same media purely to change `-o`/`--format`, or to retry a different `--max-chars`, burns a full inference pass over the whole file for output you already had the data to build. What a re-run *does* buy is the CLI's native shaping, which is pause- and margin-aware in ways a pure text re-split is not — so re-run when caption timing quality is itself the goal, not when you just need another file format.
 
 ## Timing and segment parameter map
 
@@ -108,5 +127,6 @@ When to still reach for the separate skills: use `edgespeak-align` only when you
 - **Missing model over the gateway API.** With the app running, `/v1/audio/transcriptions` auto-downloads a missing local model (bounded wait, on by default). If it is not ready within the request budget you get HTTP 503 with code `model_downloading` (retry after `Retry-After`) or `model_not_downloaded` (auto-download disabled — download it in EdgeSpeak → Models or enable the setting). Treat both as retryable, not permanent failures.
 - **Word-level timing depends on language**: for supported languages, `json` can carry real per-word timestamps (inline forced alignment). For unsupported languages you get **segment-level** (VAD-split) timing only — don't claim per-word timing there.
 - **Check that word timing actually arrived.** If the `json` output comes back as a single whole-audio segment with no `words` array, the on-device post-processing didn't run — open the EdgeSpeak app and rerun (proxy mode). Never pad missing word timing yourself.
+- **A too-tight `--max-chars` splits mid-clause.** Sentence shaping is a length constraint, not line wrapping: when no semantic boundary fits the budget it breaks between arbitrary words (`... dinner plans, and stray` / `worries, our inner monologue ...`). This gets common below ~60 chars on dense narration. Skim the result for cues ending on a conjunction, preposition, or article, and loosen the limit if you see them.
 - **No speaker diarization** — don't promise "who said what".
 - Long audio can take tens of seconds (model decrypt + inference). **Don't assume it hung** — be patient.
