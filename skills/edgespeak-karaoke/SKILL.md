@@ -76,9 +76,31 @@ Useful preferences include preset, font, font size, ASS colors, margin, output f
 Use `edgespeak_align` only when the user supplied an external final transcript or materially edited
 the ASR text. Alignment must use the final word sequence; never keep stale timestamps after edits.
 
+## Requirements
+
+- **Node.js 18 or newer** for the bundled scripts.
+- **FFmpeg built with `libass`**, plus `ffprobe` — a separate executable that must also be on PATH.
+  Every preview and every burn goes through the `ass` filter, so an FFmpeg without libass fails with
+  `No such filter: 'ass'` no matter which preset is selected. Burning to MP4/MOV/MKV/TS additionally
+  needs `libx264`; WebM needs `libvpx` and `libopus`. Homebrew and the major distro packages include
+  all of these.
+- `edgespeak-cli` (or the EdgeSpeak app) for transcription, which runs on **macOS Apple Silicon and
+  Linux x86_64**. Install with `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no
+  desktop app needed; on Linux the installer auto-detects NVIDIA GPUs and installs a CUDA-enabled
+  runtime).
+
+When a run fails on a missing dependency, report which check failed rather than retrying:
+
+```bash
+node --version                       # v18+
+ffprobe -version                     # must exist alongside ffmpeg
+ffmpeg -filters   | grep -w ass      # the ASS renderer (libass)
+ffmpeg -encoders  | grep -w libx264  # H.264 output
+```
+
 ## Generate ASS and previews
 
-Requires Node.js 18 or newer. Generate the selected preset:
+Generate the selected preset:
 
 ```bash
 node <skill-dir>/scripts/karaoke-ass.mjs /path/to/transcript.json \
@@ -152,7 +174,10 @@ even at CRF 28, so it is never the constraint.
 
 ## CLI fallback
 
-If MCP is unavailable but `edgespeak-cli` is installed, use the single-call equivalent:
+If MCP is unavailable but `edgespeak-cli` is installed, use the single-call equivalent. If the
+command is not found, tell the user to install it: `curl -fsSL https://edgespeak.com/install.sh | sh`
+(self-contained, no desktop app needed; macOS Apple Silicon and Linux x86_64, CUDA auto-detected on
+Linux).
 
 ```bash
 edgespeak-cli transcribe /path/to/source-media -o /output/transcript.json \

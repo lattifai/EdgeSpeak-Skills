@@ -39,6 +39,24 @@ edgespeak-cli status
 
 之后用 `edgespeak-cli update` 更新运行时 (重新拉取最新的自包含包)。
 
+### 卡拉 OK Skill 的额外依赖
+
+`edgespeak-karaoke` 会运行内置脚本并渲染视频，因此还需要：
+
+- **Node.js 18 或更高版本。**
+- **带 `libass` 编译的 FFmpeg**，以及 `ffprobe` —— 它是独立的可执行文件，同样需要在 PATH 中。
+  样式预览和硬字幕都走 FFmpeg 的 `ass` 滤镜，该滤镜由 libass 提供；缺少它的 FFmpeg 会直接报
+  `No such filter: 'ass'`。烧录到 MP4/MOV/MKV/TS 还需要 `libx264`；WebM 需要 `libvpx` 和 `libopus`。
+
+`brew install ffmpeg` 以及主流 Linux 发行版的 ffmpeg 包都已包含上述组件。可以这样验证：
+
+```bash
+node --version                       # v18 或更高
+ffprobe -version                     # 必须与 ffmpeg 一同存在
+ffmpeg -filters   | grep -w ass      # ASS 渲染器
+ffmpeg -encoders  | grep -w libx264  # H.264 输出
+```
+
 ## 激活
 
 首次使用需要一次性激活 —— 本地引擎需要有效授权：

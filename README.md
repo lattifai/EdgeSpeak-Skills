@@ -39,6 +39,26 @@ edgespeak-cli status
 
 Update the runtime later with `edgespeak-cli update` (re-fetches the latest self-contained package).
 
+### Extra requirements for the karaoke skill
+
+`edgespeak-karaoke` runs bundled scripts and renders video, so it also needs:
+
+- **Node.js 18 or newer.**
+- **FFmpeg built with `libass`**, and `ffprobe` — a separate executable that must also be on PATH.
+  Style previews and hard subtitles both go through FFmpeg's `ass` filter, which libass provides; an
+  FFmpeg without it fails with `No such filter: 'ass'`. Burning to MP4/MOV/MKV/TS also needs
+  `libx264`; WebM needs `libvpx` and `libopus`.
+
+`brew install ffmpeg` and the ffmpeg packages in the major Linux distributions include all of these.
+Verify with:
+
+```bash
+node --version                       # v18 or newer
+ffprobe -version                     # must exist alongside ffmpeg
+ffmpeg -filters   | grep -w ass      # the ASS renderer
+ffmpeg -encoders  | grep -w libx264  # H.264 output
+```
+
 ## Activation
 
 First use needs a one-time activation — the on-device engine requires a valid license:
