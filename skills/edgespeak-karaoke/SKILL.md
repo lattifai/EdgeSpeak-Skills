@@ -8,21 +8,30 @@ description: Create word-highlighted karaoke ASS subtitles and optionally burn t
 Create karaoke subtitles from one EdgeSpeak transcription request. Use the bundled zero-dependency
 Node.js scripts for deterministic ASS generation, real-frame style previews, and FFmpeg rendering.
 
-## Decide without over-questioning
+## Let the user pick the look
 
 Collect the source path, output location, and whether the user wants ASS, hard subtitles, or both.
-Treat style selection as one of these modes:
+Style is the one decision the user can see and disagree with, so treat it as theirs by default:
 
 - **Explicit**: honor the named preset or overrides. Available presets are `classic`, `minimal`,
   `boxed`, and `high-contrast`.
-- **Choose**: when the user asks to compare or choose styles, render all presets on the same real
-  video frame. Show the PNGs with the runtime's image-viewing capability. A terminal can list paths
-  and descriptions, but ANSI text is not a faithful visual preview. Ask one compact question after
-  the previews exist.
-- **Auto**: when the user says to decide for them, requests a quick/default result, or gives no style
-  preference while asking for the finished output, choose and continue without blocking.
+- **Auto**: only when the user actually hands the decision over — "you pick", "whatever works",
+  "just make it quick", "use the default". Choose from the table below and continue without blocking.
+- **Preview then ask** — the default whenever the user stated no style preference. Render every
+  preset on real source frames, show the PNGs with the runtime's image-viewing capability, and ask
+  one compact question. A terminal can list paths and descriptions, but ANSI text is not a faithful
+  visual preview.
 
-For auto mode, inspect a representative source frame when practical and use these defaults:
+Silence is not delegation. A user who never mentioned style has usually not seen the options rather
+than decided to skip them. Asking costs one short exchange; guessing wrong costs a re-render of the
+whole video, and with hard subtitles that is the expensive path.
+
+**Never render previews without showing them.** `--preview-media` renders all four presets on every
+run, so the moment that command completes the full comparison already exists on disk. Opening one
+PNG, picking silently, and reporting only the winner hides a trade-off the user was entitled to see.
+
+For auto mode — and to seed the recommendation offered alongside previews — inspect representative
+source frames and use these defaults:
 
 | Footage | Preset |
 |---|---|
@@ -30,6 +39,10 @@ For auto mode, inspect a representative source frame when practical and use thes
 | Clean, mostly dark background | `minimal` |
 | Busy, bright, slides, or screen recording | `boxed` |
 | Vertical/mobile or consistently difficult background | `high-contrast` |
+
+When brightness swings across the source — dark scenes and bright scenes in the same video — no
+single frame settles the choice. Render previews at two contrasting timestamps and compare both,
+because a preset that wins on a bright frame can go invisible on a dark one.
 
 Current-request instructions win. If present, also read optional preferences from
 `.edgespeak-skills/edgespeak-karaoke/EXTEND.md`, then
@@ -74,7 +87,8 @@ node <skill-dir>/scripts/karaoke-ass.mjs /path/to/transcript.json \
   --title "Source title"
 ```
 
-To let the user choose, render every preset on one active cue from the actual source:
+To present the choice, render every preset on one active cue from the actual source. This is the
+default path, not a special case — and every PNG it produces is meant to be shown:
 
 ```bash
 node <skill-dir>/scripts/karaoke-ass.mjs /path/to/transcript.json \
@@ -84,7 +98,8 @@ node <skill-dir>/scripts/karaoke-ass.mjs /path/to/transcript.json \
   --preview-dir /output/source.karaoke-previews
 ```
 
-Use `--preview-at <seconds>` when another frame is more representative. List presets with
+Use `--preview-at <seconds>` when another frame is more representative, and run it twice with
+different timestamps when the source mixes bright and dark scenes. List presets with
 `--list-styles`. Fine-tune with `--font`, `--font-size`, `--margin-v`, `--primary`, `--secondary`,
 `--outline`, and `--back`; ASS colors use `&HAABBGGRR`. The script preserves EdgeSpeak segment
 boundaries and only maps aligned durations/gaps to `\kf` / `\k` tags.
