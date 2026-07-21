@@ -1,11 +1,15 @@
 ---
 name: edgespeak-broadcast
+version: 0.1.0
+minCliVersion: 0.3.0
 description: Turn text into natural speech fully on-device via EdgeSpeak (Broadcast) — synthesize WAV audio with selectable voices, style instructions, speed and reproducible seeds, design a brand-new voice from a text description, and manage a local voice library including cloning a voice from consented reference audio. Use when the user wants local private text-to-speech, an audio version of some text, or wants to list/add/delete EdgeSpeak voices.
 ---
 
 # EdgeSpeak Broadcast
 
 Turn text into speech, **entirely on-device — the text never leaves the machine**. Broadcast is EdgeSpeak's speech feature; under the hood this skill calls `edgespeak-cli speech` (alias: `synthesize`). When the EdgeSpeak desktop app is running, the CLI talks to its local gateway (OpenAI-compatible, `127.0.0.1:1117`) and reuses the warm model (proxy mode); when the app is not running, the CLI launches the bundled on-device engine itself (standalone mode). **Standalone is a normal mode, not an error.**
+
+**Version compatibility.** The frontmatter pins this skill's `version` and the oldest CLI it is written against (`minCliVersion`). If `edgespeak-cli --version` reports something older, run `edgespeak-cli update` (or re-run the installer) before relying on the flags documented here. Same-numbered builds can still differ, so `--help` is the tiebreaker: a command or flag documented here but missing from the installed `--help` also means update — don't route around it.
 
 ## Inputs to confirm
 
@@ -43,6 +47,8 @@ Turn text into speech, **entirely on-device — the text never leaves the machin
    ```
 
    The WAV is written to `-o` and a JSON result is printed to **stdout**. Engine logs go to **stderr** — when scripting, parse stdout only.
+
+   **Do not silently overwrite an existing output file.** `speech` clobbers an existing `-o` WAV without warning. If the requested path already exists and the user did not explicitly ask to overwrite or regenerate that exact file, confirm with the user first (or agree on a different path); if you cannot ask, write to a new non-conflicting path and say so in your answer.
 
 ## Option map
 
@@ -111,7 +117,7 @@ edgespeak-cli voices delete "My voice"
 
 ## Boundaries / gotchas (read this)
 
-- **Requires a current `edgespeak-cli`.** Older CLI versions lack `speech` / `voices`, and only the newest add the Qwen3-TTS model ids and `--device` — if a documented command or flag is missing from `edgespeak-cli --help`, tell the user to update (`edgespeak-cli update`, or reinstall via `curl -fsSL https://edgespeak.com/install.sh | sh`).
+- **Requires a current `edgespeak-cli`** (see the version compatibility note up top): older versions lack `speech` / `voices` entirely, and only the newest builds add the Qwen3-TTS model ids and `--device`. When in doubt, `edgespeak-cli update` first.
 - **First use needs activation** (`edgespeak-cli login` for browser sign-in — it also upgrades an anonymous trial to your account, `activate <KEY>` with an existing key, or `edgespeak-cli trial` for an instant anonymous 7-day trial), same as the other EdgeSpeak skills. Surface license errors; don't work around them. Non-interactive runs fail fast instead of prompting.
 - **Three model ids work here**: `omnivoice` (default), `qwen3-tts-0.6b-base`, and `qwen3-tts-1.7b-voice-design` — other ids are unavailable through `speech` and fail, even if an installed CLI's `--help` still lists them. Voice design (`qwen3-tts-1.7b-voice-design`) requires `--voice builtin:auto` plus `--instructions`; the app's Broadcast workspace offers the same models with richer UI workflows.
 - **If synthesis fails with HTTP 400 `unsupported_auto_voice`**: this gateway build does not accept the CLI's default `--voice builtin:auto`. Recover by running `edgespeak-cli voices list` and passing an explicit voice (`--voice builtin:<id>`); when the user has no preference, prefer listing voices and choosing one upfront so the default is never relied on.

@@ -1,11 +1,15 @@
 ---
 name: edgespeak-transcribe
+version: 0.1.0
+minCliVersion: 0.3.0
 description: Transcribe audio/video on-device via EdgeSpeak into text, JSON, or SRT, with optional word-level timing and sentence-shaping parameters for subtitles, meeting notes, voice memos, and searchable transcripts. Use when the user has a local media file to turn into private no-upload transcription or wants transcribe output tuned with timing or segment options.
 ---
 
 # EdgeSpeak Transcribe
 
 Turn audio/video into a transcript, **entirely on-device — the audio never leaves the machine**. Under the hood it calls `edgespeak-cli transcribe`. When the EdgeSpeak desktop app is running, the CLI talks to its local gateway (OpenAI-compatible, `127.0.0.1:1117`) and reuses the warm model (proxy mode); when the app is not running, the CLI launches the bundled on-device engine itself (standalone mode). **Standalone is a normal mode, not an error.**
+
+**Version compatibility.** The frontmatter pins this skill's `version` and the oldest CLI it is written against (`minCliVersion`). If `edgespeak-cli --version` reports something older, run `edgespeak-cli update` (or re-run the installer) before relying on the flags documented here. Same-numbered builds can still differ, so `--help` is the tiebreaker: a command or flag documented here but missing from the installed `--help` also means update — don't route around it.
 
 ## Inputs to confirm
 
@@ -41,6 +45,7 @@ Then run `transcribe` with the answers applied. Do not produce a plain `-o out.s
 
    - Without `-o`: the transcript prints to **stdout** (easy to read / post-process).
    - `-o out.srt` / `out.json` / `out.txt`: writes a file; **the extension decides the format**.
+   - **Do not silently overwrite an existing output file.** The CLI clobbers an existing `-o` target without warning. If the requested path already exists and the user did not explicitly ask to overwrite or regenerate that exact file, confirm with the user first (or agree on a different path); if you cannot ask, write to a new non-conflicting path and say so in your answer.
    - Use `--format txt|json|srt` when the output path does not end exactly in `.txt`, `.json`, or `.srt` (for example, some temporary filenames).
    - Use `--model <model-id>` only when the user explicitly asks for a specific local EdgeSpeak model.
    - Use `--license-key <KEY>` (alias `--key`) only to pass a license key explicitly for this run; normally activation (above) already covers it.
@@ -54,7 +59,7 @@ Transcription is the expensive step; output format and sentence shaping are down
 edgespeak-cli transcribe media.mp4 -o out.json --max-chars 80   # text + segments + words[]
 ```
 
-That JSON already contains every cue boundary you could need — `segments[].words[]` carries real `start`/`end` per word. SRT, ASS, karaoke highlighting, clip ranges, and a re-split at a different cue length are all derivable from it **without touching the audio again**. To re-split, run `edgespeak-segment` on the transcript text (text-only, seconds not minutes) and map the returned sentences back onto the JSON word timings by character offset.
+That JSON already contains every cue boundary you could need — `segments[].words[]` carries real `start`/`end` per word. SRT, ASS, karaoke highlighting, clip ranges, and a re-split at a different cue length are all derivable from it **without touching the audio again**. To re-split, run `edgespeak-cli segment --transcript out.json --max-chars <N>` — it re-splits the text and re-maps the word timings natively (a text-only pass, seconds not minutes) and emits the same transcribe-shaped JSON/SRT (see `edgespeak-segment`).
 
 Re-running `transcribe` on the same media purely to change `-o`/`--format`, or to retry a different `--max-chars`, burns a full inference pass over the whole file for output you already had the data to build. What a re-run *does* buy is the CLI's native shaping, which is pause- and margin-aware in ways a pure text re-split is not — so re-run when caption timing quality is itself the goal, not when you just need another file format.
 
@@ -115,7 +120,7 @@ The OpenAI-compatible transcription API uses multipart `file` upload. Do not sen
 
 Only use this API path when the user needs those specific controls and you have the local gateway URL/key context. Otherwise stay with the CLI.
 
-When to still reach for the separate skills: use `edgespeak-align` only when you have an **external reference transcript** (not the one transcribe just produced) and need it timed; use `edgespeak-segment` only to split **plain text you already have** into sentences. For "transcribe this and give me word/sentence timing", a single `transcribe -o out.json` is the whole job.
+When to still reach for the separate skills: use `edgespeak-align` only when you have an **external reference transcript** (not the one transcribe just produced) and need it timed; use `edgespeak-segment` to split **plain text you already have** into sentences, or (`segment --transcript`) to re-split an existing word-timed JSON at a new cue length. For "transcribe this and give me word/sentence timing", a single `transcribe -o out.json` is the whole job.
 
 ## Boundaries / gotchas (read this)
 

@@ -1,11 +1,15 @@
 ---
 name: edgespeak-align
+version: 0.1.0
+minCliVersion: 0.3.0
 description: Force-align audio/video against a known transcript on-device via EdgeSpeak to produce word-level timestamps (start, end, score) for karaoke captions, word-accurate SRT, dubbing, and clip extraction. Use when the user already has the transcript/script/lyrics and wants to know exactly when each word is spoken.
 ---
 
 # EdgeSpeak Align
 
 Force-align an audio/video file against a **reference transcript you already have**, producing **word-level timestamps** — when each word starts and ends. Runs **entirely on-device**; the audio never leaves the machine. Under the hood it calls `edgespeak-cli align`. When the EdgeSpeak desktop app is running, the CLI talks to its local gateway (OpenAI-compatible, `127.0.0.1:1117`) and reuses the warm model (proxy mode); when the app is not running, the CLI launches the bundled on-device engine itself (standalone mode). **Standalone is a normal mode, not an error.**
+
+**Version compatibility.** The frontmatter pins this skill's `version` and the oldest CLI it is written against (`minCliVersion`). If `edgespeak-cli --version` reports something older, run `edgespeak-cli update` (or re-run the installer) before relying on the flags documented here. Same-numbered builds can still differ, so `--help` is the tiebreaker: a command or flag documented here but missing from the installed `--help` also means update — don't route around it.
 
 Alignment ≠ transcription. Transcription guesses the words; alignment is given the words and only finds the timing. If the user does **not** have the text yet, use `edgespeak-transcribe` instead.
 
@@ -38,6 +42,7 @@ Alignment ≠ transcription. Transcription guesses the words; alignment is given
    - For short snippets, inline text is also supported: `--text "<reference transcript>"`.
    - Without `-o`: result prints to **stdout**.
    - `-o out.srt` / `out.json` / `out.txt`: the **extension decides the format**. Use `--format` only when the path's extension is ambiguous.
+   - **Do not silently overwrite an existing output file.** The CLI clobbers an existing `-o` target without warning. If the requested path already exists and the user did not explicitly ask to overwrite or regenerate that exact file, confirm with the user first (or agree on a different path); if you cannot ask, write to a new non-conflicting path and say so in your answer.
    - `json` is the gateway alignment response shape — `{ task: "align", duration, text, segments[].words[], usage }`, words in seconds with a `[0,1]` `score`; `srt` gives one cue per word; `txt` is human-readable.
    - `--protected-terms "<term>"` (repeatable) keeps brand names / jargon verbatim through normalization, so they don't get split or rewritten before matching.
    - `--device cpu|cuda|cuda:<N>|metal|auto` picks the compute backend (case-insensitive; `cuda:<N>` selects GPU N, `metal` is macOS, `gpu` means Metal on macOS / CUDA elsewhere). **Standalone mode only** — with the app gateway reachable the flag errors explicitly; an unavailable backend also errors rather than silently falling back.
@@ -67,12 +72,12 @@ CLI `json` output is **identical to the gateway's `POST /v1/audio/alignments` re
 
 ## Sentence-level timing (combine with segment)
 
-`align` returns **words**, not sentences. To get sentence/caption-level timing:
+`align` returns **words**, not sentences. To get sentence/caption-level timing, save the alignment as JSON and re-split it:
 
-1. `edgespeak-cli segment` the reference text into sentences (see `edgespeak-segment`).
-2. Map each sentence onto the aligned words in order — the sentence's `start` = first word's `start`, `end` = last word's `end`.
+1. `edgespeak-cli align <media> --text-file script.txt -o words.json`
+2. `edgespeak-cli segment --transcript words.json` — re-splits the text into sentences and re-maps every word timing into them (each sentence's `start` / `end` come from its first/last word; see `edgespeak-segment`). Add `--max-chars` / `--min-chars` for caption-length cues, `-o out.srt` for subtitles directly.
 
-This pairing is the reliable way to get sentence timestamps; `segment` alone on plain text does **not** produce real timings.
+This pairing is the reliable way to get sentence timestamps; `segment` alone on plain text does **not** produce real timings, and manual sentence-onto-words mapping is no longer needed.
 
 ## Boundaries / gotchas (read this)
 

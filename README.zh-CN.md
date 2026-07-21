@@ -39,6 +39,10 @@ edgespeak-cli status
 
 之后用 `edgespeak-cli update` 更新运行时 (重新拉取最新的自包含包)。
 
+### 版本约定
+
+每个 Skill 的 frontmatter 都带有自身的 `version` 和 `minCliVersion` —— 该 Skill 所要求的最低 `edgespeak-cli` 版本 (翻译 Skill 不依赖 CLI，因此没有 `minCliVersion`)。如果 `edgespeak-cli --version` 低于要求，或 Skill 里写到的参数在本机 `--help` 中不存在，先跑 `edgespeak-cli update` 更新。
+
 ### 卡拉 OK Skill 的额外依赖
 
 `edgespeak-karaoke` 会运行内置脚本并渲染视频，因此还需要：
@@ -82,13 +86,14 @@ edgespeak-cli activate <KEY>
 |-------|------|
 | [`edgespeak-transcribe`](skills/edgespeak-transcribe/SKILL.md) | 把音视频转成文字 / SRT / JSON，并支持时间轴与分句参数，全程本地 |
 | [`edgespeak-align`](skills/edgespeak-align/SKILL.md) | 把音频与已有文稿做强制对齐 → 词级时间戳 (逐词高亮字幕、按句剪辑、配音对齐) |
-| [`edgespeak-segment`](skills/edgespeak-segment/SKILL.md) | 把一大段 (甚至无标点的) 文字切成自然句子 |
+| [`edgespeak-segment`](skills/edgespeak-segment/SKILL.md) | 把一大段 (甚至无标点的) 文字切成自然句子，也能按新的字幕长度重切带词级时间的转录 JSON 并同步重排每个词的时间 |
 | [`edgespeak-broadcast`](skills/edgespeak-broadcast/SKILL.md) | 把文字变成语音 (播报)，全程本地：可选、可克隆或按文字描述设计声音，支持风格指令与可复现种子，输出 WAV |
 | [`edgespeak-karaoke`](skills/edgespeak-karaoke/SKILL.md) | 生成带样式的逐词高亮 ASS 字幕，可用真实视频帧预览预设，并尽量按源容器烧录硬字幕 |
+| [`edgespeak-translate`](skills/edgespeak-translate/SKILL.md) | 翻译带时间轴的文稿，保持时间戳与 1:1 段落映射不变——用于字幕、双语 SRT，或有长度预算的配音脚本 |
 
 ## 原理
 
-转录、对齐、分句与播报 Skill 经 `edgespeak-cli`（`transcribe` / `align` / `segment` / `speech`）工作；卡拉 OK Skill 优先使用已配置的 EdgeSpeak MCP，CLI 作为回退。EdgeSpeak 桌面 App 在运行时，CLI 连接它的本机网关（OpenAI 兼容，`127.0.0.1:1117`，强制本地路由）并复用暖模型 (proxy 模式)；App 没起时，CLI 自己拉起随附的本地引擎 (standalone 模式) —— 这是正常模式，不是错误。两种情况音频都在设备内处理，不上传。
+转录、对齐、分句与播报 Skill 经 `edgespeak-cli`（`transcribe` / `align` / `segment` / `speech`）工作；卡拉 OK Skill 优先使用已配置的 EdgeSpeak MCP，CLI 作为回退。翻译 Skill 完全不用 EdgeSpeak 运行时——由 Agent 自己翻译，所以文本和音频一样留在本机；它自带的校验脚本 (核对时间轴与段落映射有没有被改坏) 只需要 Node.js 18+。EdgeSpeak 桌面 App 在运行时，CLI 连接它的本机网关（OpenAI 兼容，`127.0.0.1:1117`，强制本地路由）并复用暖模型 (proxy 模式)；App 没起时，CLI 自己拉起随附的本地引擎 (standalone 模式) —— 这是正常模式，不是错误。两种情况音频都在设备内处理，不上传。
 
 ## 许可
 

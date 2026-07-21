@@ -1,6 +1,8 @@
 ---
 name: edgespeak-karaoke
-description: Create word-highlighted karaoke ASS subtitles and optionally burn them into local video using one EdgeSpeak transcription request with inline word-level forced alignment. Use when the user asks for karaoke captions, per-word highlighting, an ASS file, subtitle style choices or previews, or a hard-subbed video without supplying a final reference transcript.
+version: 0.1.0
+minCliVersion: 0.3.0
+description: Create word-highlighted karaoke ASS subtitles, optionally bilingual with a translated second line, and burn them into local video using one EdgeSpeak transcription request with inline word-level forced alignment. Use when the user asks for karaoke captions, per-word highlighting, an ASS file, bilingual or dual-language subtitles, subtitle style choices or previews, or a hard-subbed video without supplying a final reference transcript.
 ---
 
 # EdgeSpeak Karaoke
@@ -25,6 +27,9 @@ Style is the one decision the user can see and disagree with, so treat it as the
 Silence is not delegation. A user who never mentioned style has usually not seen the options rather
 than decided to skip them. Asking costs one short exchange; guessing wrong costs a re-render of the
 whole video, and with hard subtitles that is the expensive path.
+
+For bilingual output, which language sits on top is the same kind of visible choice — fold it into
+that one question rather than asking twice.
 
 **Never render previews without showing them.** `--preview-media` renders all four presets on every
 run, so the moment that command completes the full comparison already exists on disk. Opening one
@@ -87,7 +92,9 @@ the ASR text. Alignment must use the final word sequence; never keep stale times
 - `edgespeak-cli` (or the EdgeSpeak app) for transcription, which runs on **macOS Apple Silicon and
   Linux x86_64**. Install with `curl -fsSL https://edgespeak.com/install.sh | sh` (self-contained, no
   desktop app needed; on Linux the installer auto-detects NVIDIA GPUs and installs a CUDA-enabled
-  runtime).
+  runtime). The frontmatter's `minCliVersion` is the oldest CLI this skill is written against — if
+  `edgespeak-cli --version` is older, or a documented flag is missing from `--help`, run
+  `edgespeak-cli update`.
 
 When a run fails on a missing dependency, report which check failed rather than retrying:
 
@@ -125,6 +132,46 @@ different timestamps when the source mixes bright and dark scenes. List presets 
 `--list-styles`. Fine-tune with `--font`, `--font-size`, `--margin-v`, `--primary`, `--secondary`,
 `--outline`, and `--back`; ASS colors use `&HAABBGGRR`. The script preserves EdgeSpeak segment
 boundaries and only maps aligned durations/gaps to `\kf` / `\k` tags.
+
+## Bilingual karaoke
+
+When the transcript carries a `translation` on every segment — what `edgespeak-translate` writes —
+the generator emits two lines per cue and needs no extra flag:
+
+```bash
+node <skill-dir>/scripts/karaoke-ass.mjs /path/to/transcript.zh.json \
+  -o /output/source.karaoke.ass --style boxed
+```
+
+Both lines live in **one** Dialogue event separated by `\N`, so ASS stacks them as a single block
+off the shared margin. Two separate events would each anchor to that margin and overlap.
+
+- `--layout translation-top` (default) puts the translation above the source; `source-top` flips
+  it, for viewers reading along in the source language. The **top line renders at the preset size
+  and the bottom at 72%**, so the eye lands on the primary language either way.
+- `--layout source-only` ignores the translations and produces the single-language file.
+- Only the **source** line sweeps. Word timings describe the source audio, so the translation gets
+  no `\k` tags — it holds a plain fill for the whole cue. Distributing the cue duration across the
+  translation's characters would be invented timing; do not add it. For real target-language word
+  timing, synthesize with `edgespeak-broadcast` and align that audio.
+
+### The translation font is not optional
+
+libass does **not** substitute fonts per glyph the way a browser does. A CJK translation in a Latin
+style font renders as blank boxes — silently, all the way through a burn — so the generator picks
+the font by script instead of inheriting the preset's:
+
+- The script is detected from the translation text and matched via `fc-match :lang=<tag>`, taking a
+  single ASCII family alias (an alias list would break the comma-delimited ASS style row).
+- `--translation-font <name>` overrides it, and is **rejected** when `fc-list` says that font does
+  not claim the detected language. Do not work around the error by picking another Latin font —
+  check what covers the script with `fc-list :lang=zh-cn family`.
+- Without fontconfig the auto-pick fails loudly; pass `--translation-font` explicitly. The run
+  reports `translation_font_verified: false` when coverage could not be checked, so report that
+  caveat rather than claiming the font is fine.
+
+A partly translated transcript is rejected outright — it means the translate step stopped early,
+and emitting source-only cues for the remainder would pass an incomplete file off as finished.
 
 ## Burn hard subtitles
 
@@ -185,7 +232,9 @@ edgespeak-cli transcribe /path/to/source-media -o /output/transcript.json \
 ```
 
 CLI transcript JSON already contains `segments[].words[]`. Do not run `edgespeak-cli align` on text
-that the same transcribe command just produced.
+that the same transcribe command just produced. Unlike the bundled scripts (which refuse to replace
+existing outputs without `--overwrite`), `edgespeak-cli -o` clobbers an existing file silently — if
+the transcript path already exists, confirm with the user before overwriting or pick a new path.
 
 ## Validation and reporting
 
@@ -195,13 +244,17 @@ that the same transcribe command just produced.
 - Verify the hard-subbed output duration, stream count, output codec, and zero subtitle streams.
 - Compare the output bitrate against the source before reporting; a multiple of the source bitrate
   means the encode overshot, not that the source was low quality.
-- Extract an active-cue frame and visually verify that text is burned into pixels and readable.
+- Extract an active-cue frame and visually verify that text is burned into pixels and readable. For
+  bilingual output this is also the tofu check: confirm the translation line shows real glyphs
+  rather than boxes, and that both lines are present and stacked.
 - Report the ASS path, preview paths if any, video path, selected preset, container decision, codecs,
-  duration, size, and validation result.
+  duration, size, and validation result — plus the layout and resolved translation font when the
+  output is bilingual.
 
 ## Bundled scripts
 
-- `scripts/karaoke-ass.mjs`: validate EdgeSpeak word timing, generate preset/custom ASS, and render
-  real-frame PNG previews.
+- `scripts/karaoke-ass.mjs`: validate EdgeSpeak word timing, generate preset/custom ASS (single
+  language or bilingual), resolve a script-appropriate translation font, and render real-frame PNG
+  previews.
 - `scripts/render-hardsub.mjs`: burn ASS with FFmpeg, preserve the source container where practical,
   and validate the result.

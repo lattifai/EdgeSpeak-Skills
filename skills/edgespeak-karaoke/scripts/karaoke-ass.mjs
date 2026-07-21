@@ -60,9 +60,94 @@ export const STYLES = Object.freeze({
   },
 });
 
+// Bilingual layout: the top line renders at the preset size and the line beneath it at
+// SECONDARY_SCALE, so the eye lands on the top line first whichever language sits there.
+const SECONDARY_SCALE = 0.72;
+
+// libass does not substitute fonts per glyph the way a browser does: a codepoint the
+// style's font lacks renders as tofu, silently, all the way through a burn. So a
+// translation written in one of these scripts has to be matched to a font that actually
+// claims the language rather than inheriting the preset's Latin font.
+const SCRIPTS = Object.freeze([
+  { lang: "ja", test: /[぀-ヿ]/ },              // kana disambiguates Japanese from Han
+  { lang: "ko", test: /[가-힯ᄀ-ᇿ]/ },
+  { lang: "zh-cn", test: /[㐀-䶿一-鿿豈-﫿]/ },
+  { lang: "ru", test: /[Ѐ-ӿ]/ },
+  { lang: "el", test: /[Ͱ-Ͽ]/ },
+  { lang: "he", test: /[֐-׿]/ },
+  { lang: "ar", test: /[؀-ۿ]/ },
+  { lang: "hi", test: /[ऀ-ॿ]/ },
+  { lang: "th", test: /[฀-๿]/ },
+]);
+
 function fail(message) {
   console.error(message);
   process.exitCode = 1;
+}
+
+// Returns the fontconfig language tag the translation needs, or null when it is Latin
+// enough for the preset font. Order matters: kana and hangul are checked before Han
+// because Japanese and Korean text mixes in Han characters.
+export function detectScriptLang(text) {
+  return SCRIPTS.find((script) => script.test.test(text))?.lang ?? null;
+}
+
+function fontconfig(command, args) {
+  try {
+    return execFileSync(command, args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    return null; // fontconfig absent (common in minimal containers) or no match
+  }
+}
+
+// fc-match returns every alias of the matched family, comma-separated and often with the
+// localized name first ("冬青黑体简体中文,Hiragino Sans GB,..."). ASS delimits Style fields
+// with commas, so only one alias can be used -- prefer an ASCII one to keep the file
+// portable between machines whose fontconfig localizes names differently.
+function pickAlias(families) {
+  const aliases = families.split(",").map((alias) => alias.trim()).filter(Boolean);
+  return aliases.find((alias) => /^[\x20-\x7E]+$/.test(alias)) ?? aliases[0] ?? null;
+}
+
+// `fc-list "<family>" lang` prints one `:lang=aa|ab|...` line per matching face. Ask the
+// font what it claims rather than asking fontconfig to match -- a family-name match wins
+// over a :lang= constraint, so `fc-match "Arial:lang=zh"` cheerfully returns Arial.
+function claimsLang(font, lang) {
+  const listed = fontconfig("fc-list", [font, "lang"]);
+  if (listed === null) return null; // fontconfig missing: unverifiable, not a failure
+  if (!listed) return false;
+  return listed
+    .split("\n")
+    .some((line) => (line.split(":lang=")[1] ?? "").split("|").includes(lang));
+}
+
+// Resolves the font for the translation line, and refuses to emit a file that would
+// render as tofu. Returns { font, lang, verified }.
+export function resolveTranslationFont(text, { requested, fallback }) {
+  const lang = detectScriptLang(text);
+  if (!lang) return { font: requested ?? fallback, lang: null, verified: true };
+
+  if (requested) {
+    const covers = claimsLang(requested, lang);
+    if (covers === false) {
+      throw new Error(
+        `--translation-font "${requested}" does not cover ${lang}; libass would render the translation as blank boxes. ` +
+          `Pick a font that does (fc-list :lang=${lang} family) or drop the flag to auto-select one.`,
+      );
+    }
+    return { font: requested, lang, verified: covers === true };
+  }
+
+  const matched = fontconfig("fc-match", ["-f", "%{family}", `:lang=${lang}`]);
+  const font = matched ? pickAlias(matched) : null;
+  if (!font) {
+    throw new Error(
+      `the translation is ${lang} but no font could be auto-selected for it` +
+        `${matched === null ? " (fontconfig is not installed)" : ""}. ` +
+        `Pass --translation-font <name> with a font that covers ${lang}.`,
+    );
+  }
+  return { font, lang, verified: claimsLang(font, lang) === true };
 }
 
 function parseArgs(argv) {
@@ -102,7 +187,9 @@ export function loadTranscript(path) {
   }
   let previousEnd = 0;
   let wordCount = 0;
+  let translated = 0;
   payload.segments.forEach((segment, segmentIndex) => {
+    if (String(segment.translation ?? "").trim()) translated += 1;
     const start = number(segment.start, `segments[${segmentIndex}].start`);
     const end = number(segment.end, `segments[${segmentIndex}].end`);
     if (end <= start) throw new Error(`segments[${segmentIndex}] must have end > start`);
@@ -126,7 +213,15 @@ export function loadTranscript(path) {
       wordCount += 1;
     });
   });
-  return { segments: payload.segments, wordCount };
+  // A partly-translated transcript means the translate step stopped early. Falling back
+  // to source-only would hide that; dropping the untranslated cues would desync the file.
+  if (translated > 0 && translated < payload.segments.length) {
+    throw new Error(
+      `only ${translated} of ${payload.segments.length} segments carry a translation; ` +
+        "every segment needs one for bilingual output",
+    );
+  }
+  return { segments: payload.segments, wordCount, translated: translated > 0 };
 }
 
 function assTime(seconds) {
@@ -179,10 +274,57 @@ export function resolveStyle(name, overrides = {}) {
   return result;
 }
 
-export function buildAss(segments, { title, style }) {
+function styleRow(name, { font, fontSize, primary, secondary, style }) {
+  if (/[,\r\n]/.test(font)) throw new Error(`font name "${font}" cannot be used in an ASS style row`);
+  return `Style: ${name},${font},${fontSize},${primary},${secondary},${style.outline},${style.back},-1,0,0,0,100,100,0,0,${style.borderStyle},${style.outlineWidth},${style.shadow},2,120,120,${style.marginV},1`;
+}
+
+export function buildAss(segments, { title, style, layout = "source-only", translationFont }) {
   if (/[\r\n]/.test(title)) throw new Error("title must not contain line breaks");
-  const header = `[Script Info]\n; Generated directly from EdgeSpeak word timestamps.\nTitle: ${title}\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 0\nScaledBorderAndShadow: yes\nYCbCr Matrix: TV.709\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\nStyle: Karaoke,${style.font},${style.fontSize},${style.primary},${style.secondary},${style.outline},${style.back},-1,0,0,0,100,100,0,0,${style.borderStyle},${style.outlineWidth},${style.shadow},2,120,120,${style.marginV},1\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n`;
-  const events = segments.map((segment) => `Dialogue: 0,${assTime(Number(segment.start))},${assTime(Number(segment.end))},Karaoke,,0,0,0,karaoke,${karaokeText(segment)}`);
+  const bilingual = layout !== "source-only";
+  if (bilingual && !translationFont) throw new Error("bilingual layout requires a translation font");
+  const sourceOnTop = layout === "source-top";
+  const secondary = Math.max(1, Math.round(style.fontSize * SECONDARY_SCALE));
+
+  const styles = [
+    styleRow("Karaoke", {
+      font: style.font,
+      fontSize: bilingual && !sourceOnTop ? secondary : style.fontSize,
+      primary: style.primary,
+      secondary: style.secondary,
+      style,
+    }),
+  ];
+  if (bilingual) {
+    // Both colours are the plain fill: the translation carries no \k tags, and a line
+    // that outlives the sweep would otherwise flip to the highlight colour at the end.
+    styles.push(
+      styleRow("Translation", {
+        font: translationFont,
+        fontSize: sourceOnTop ? secondary : style.fontSize,
+        primary: "&H00FFFFFF",
+        secondary: "&H00FFFFFF",
+        style,
+      }),
+    );
+  }
+
+  const header = `[Script Info]\n; Generated directly from EdgeSpeak word timestamps.\nTitle: ${title}\nScriptType: v4.00+\nPlayResX: 1920\nPlayResY: 1080\nWrapStyle: 0\nScaledBorderAndShadow: yes\nYCbCr Matrix: TV.709\n\n[V4+ Styles]\nFormat: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding\n${styles.join("\n")}\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n`;
+
+  const events = segments.map((segment) => {
+    const timing = `${assTime(Number(segment.start))},${assTime(Number(segment.end))}`;
+    if (!bilingual) {
+      return `Dialogue: 0,${timing},Karaoke,,0,0,0,karaoke,${karaokeText(segment)}`;
+    }
+    // \r switches style mid-event so one Dialogue holds both lines; ASS then stacks them
+    // as a single block off the shared margin, which separate events would not do.
+    const source = `{\\rKaraoke}${karaokeText(segment)}`;
+    const translation = `{\\rTranslation}${escapeAss(String(segment.translation).trim())}`;
+    const [first, second] = sourceOnTop ? [source, translation] : [translation, source];
+    // The event's own style governs margins and alignment for the whole block.
+    const base = sourceOnTop ? "Karaoke" : "Translation";
+    return `Dialogue: 0,${timing},${base},,0,0,0,karaoke,${first}\\N${second}`;
+  });
   return `${header}${events.join("\n")}\n`;
 }
 
@@ -190,7 +332,7 @@ function filterPath(path) {
   return `ass=filename='${path.replaceAll("\\", "\\\\").replaceAll(":", "\\:").replaceAll("'", "\\'")}'`;
 }
 
-function renderPreviews({ segments, transcriptPath, media, previewDir, at, title, overwrite }) {
+function renderPreviews({ segments, transcriptPath, media, previewDir, at, title, layout, translationFont, overwrite }) {
   if (!existsSync(media)) throw new Error(`preview media not found: ${media}`);
   mkdirSync(previewDir, { recursive: true });
   const cue = segments.find((segment) => at === undefined || (at >= Number(segment.start) && at <= Number(segment.end))) ?? segments[0];
@@ -200,7 +342,7 @@ function renderPreviews({ segments, transcriptPath, media, previewDir, at, title
     const assPath = resolve(previewDir, `${name}.ass`);
     const imagePath = resolve(previewDir, `${name}.png`);
     if (!overwrite && (existsSync(assPath) || existsSync(imagePath))) throw new Error(`preview exists; pass --overwrite: ${imagePath}`);
-    writeFileSync(assPath, buildAss(segments, { title, style: resolveStyle(name) }), "utf8");
+    writeFileSync(assPath, buildAss(segments, { title, style: resolveStyle(name), layout, translationFont }), "utf8");
     // Keep original presentation timestamps for both the subtitle renderer and frame selector.
     // Seeking around an inter-frame codec can otherwise corrupt the first decoded preview frame.
     const previewFilter = `${filterPath(assPath)},select='gte(t,${timestamp})'`;
@@ -211,7 +353,20 @@ function renderPreviews({ segments, transcriptPath, media, previewDir, at, title
 }
 
 function usage() {
-  return `Usage:\n  node karaoke-ass.mjs <transcript.json> [-o output.ass] [--style classic]\n  node karaoke-ass.mjs --list-styles\n\nOptions:\n  --preview-media <video>   Render every preset on a real source frame\n  --preview-dir <dir>       Preview destination (default: <output>.previews)\n  --preview-at <seconds>    Frame time; defaults to the midpoint of the first cue\n  --font/--font-size/--margin-v and --primary/--secondary/--outline/--back override a preset\n  --overwrite               Replace existing output and preview files`;
+  return `Usage:\n  node karaoke-ass.mjs <transcript.json> [-o output.ass] [--style classic]\n  node karaoke-ass.mjs --list-styles\n\nOptions:\n  --preview-media <video>   Render every preset on a real source frame\n  --preview-dir <dir>       Preview destination (default: <output>.previews)\n  --preview-at <seconds>    Frame time; defaults to the midpoint of the first cue\n  --layout <name>           translation-top (default when the transcript carries\n                            translations), source-top, or source-only\n  --translation-font <name> Font for the translation line; auto-selected per script\n  --font/--font-size/--margin-v and --primary/--secondary/--outline/--back override a preset\n  --overwrite               Replace existing output and preview files`;
+}
+
+const LAYOUTS = ["translation-top", "source-top", "source-only"];
+
+// Bilingual is the default the moment a transcript carries translations: producing a
+// source-only file from a translated transcript silently drops half of what was asked for.
+function resolveLayout(requested, translated) {
+  if (requested === undefined) return translated ? "translation-top" : "source-only";
+  if (!LAYOUTS.includes(requested)) throw new Error(`--layout must be one of ${LAYOUTS.join(", ")}`);
+  if (requested !== "source-only" && !translated) {
+    throw new Error(`--layout ${requested} needs segments[].translation; the transcript has none`);
+  }
+  return requested;
 }
 
 function main() {
@@ -228,11 +383,29 @@ function main() {
     const output = resolve(args.output ?? `${inputStem}.karaoke.ass`);
     if (!existsSync(input)) throw new Error(`input not found: ${input}`);
     if (existsSync(output) && !args.overwrite) throw new Error(`output exists; pass --overwrite: ${output}`);
-    const { segments, wordCount } = loadTranscript(input);
+    const { segments, wordCount, translated } = loadTranscript(input);
     const style = resolveStyle(args.style, args);
+    const layout = resolveLayout(args.layout, translated);
+
+    let translationFont;
+    let font;
+    if (layout !== "source-only") {
+      font = resolveTranslationFont(segments.map((segment) => segment.translation).join(""), {
+        requested: args.translation_font,
+        fallback: style.font,
+      });
+      translationFont = font.font;
+    }
+
     mkdirSync(dirname(output), { recursive: true });
-    writeFileSync(output, buildAss(segments, { title: args.title, style }), "utf8");
-    const summary = { output, style: args.style, segments: segments.length, words: wordCount };
+    writeFileSync(output, buildAss(segments, { title: args.title, style, layout, translationFont }), "utf8");
+    const summary = { output, style: args.style, layout, segments: segments.length, words: wordCount };
+    if (font) {
+      summary.translation_font = font.font;
+      summary.translation_script = font.lang ?? "latin";
+      // Say so out loud rather than implying the glyph coverage was checked.
+      if (!font.verified) summary.translation_font_verified = false;
+    }
     if (args.preview_media) {
       summary.preview = renderPreviews({
         segments,
@@ -241,6 +414,8 @@ function main() {
         previewDir: resolve(args.preview_dir ?? `${output.slice(0, -4)}.previews`),
         at: args.preview_at === undefined ? undefined : Number(args.preview_at),
         title: args.title,
+        layout,
+        translationFont,
         overwrite: Boolean(args.overwrite),
       });
     }

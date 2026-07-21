@@ -1,11 +1,15 @@
 ---
 name: edgespeak-segment
-description: Split a long run of text into natural sentences on-device via EdgeSpeak using a semantic sentence splitter that works on unpunctuated ASR output. Use when the user has raw transcript text, captions, or dictation and wants clean sentence boundaries for subtitles, reading, translation chunks, or further processing.
+version: 0.1.0
+minCliVersion: 0.3.0
+description: Split a long run of text into natural sentences on-device via EdgeSpeak using a semantic sentence splitter that works on unpunctuated ASR output, or re-segment a word-timed transcript JSON (from transcribe/align) into new sentence boundaries while re-mapping every word timing. Use when the user has raw transcript text, captions, or dictation and wants clean sentence boundaries for subtitles, reading, translation chunks, or further processing — or wants existing timed captions re-split at a different cue length without re-transcribing.
 ---
 
 # EdgeSpeak Segment
 
 Turn an undifferentiated block of text into **natural sentences**, on-device. This is a **semantic** sentence splitter (a small local model), so it works on **ASR output that has no punctuation or broken punctuation** — where naïve "split on period" fails completely. Under the hood it calls `edgespeak-cli segment`. When the EdgeSpeak desktop app is running, the CLI talks to its local gateway (OpenAI-compatible, `127.0.0.1:1117`) and reuses the warm model (proxy mode); when the app is not running, the CLI launches the bundled on-device engine itself (standalone mode). **Standalone is a normal mode, not an error.**
+
+**Version compatibility.** The frontmatter pins this skill's `version` and the oldest CLI it is written against (`minCliVersion`). If `edgespeak-cli --version` reports something older, run `edgespeak-cli update` (or re-run the installer) before relying on the flags documented here. Same-numbered builds can still differ, so `--help` is the tiebreaker: a command or flag documented here but missing from the installed `--help` also means update — don't route around it.
 
 ## Inputs to confirm
 
@@ -37,10 +41,15 @@ Turn an undifferentiated block of text into **natural sentences**, on-device. Th
 
    # length-constrained split
    edgespeak-cli segment --file transcript.txt --min-chars 40 --max-chars 120
+
+   # re-split a word-timed transcript (transcribe/align JSON), keeping real timings
+   edgespeak-cli segment --transcript words.json -o resplit.json --max-chars 80
    ```
 
-   - `--file` and `--text` are mutually exclusive.
+   - `--file`, `--text`, and `--transcript` are mutually exclusive.
+   - `--transcript <json>` consumes a word-timed transcribe/align JSON (`segments[].words[]` required — input without word timing errors out): it re-splits the text into new sentences and re-maps each word into them, so every new sentence carries real `start` / `end` from its first/last word. Output is transcribe-shaped verbose JSON (default format in this mode is `json`; `srt` / `txt` also work). `--start-margin` / `--end-margin` then pad the sentence windows outward, but only into the silence between sentences — adjacent cues never overlap. If the text can't be matched back onto the words, the command errors instead of emitting mis-timed output.
    - Default output (`txt` / stdout): one sentence per line.
+   - **Do not silently overwrite an existing output file.** The CLI clobbers an existing `-o` target without warning. If the requested path already exists and the user did not explicitly ask to overwrite or regenerate that exact file, confirm with the user first (or agree on a different path); if you cannot ask, write to a new non-conflicting path and say so in your answer.
    - `--format json`: an envelope object `{ "task": "segment", "text": "<all sentences joined>", "segments": [{ "text": ..., "start"?: ..., "end"?: ... }] }` — the sentence array lives under the top-level `segments` key, it is **not** a bare array.
    - `--threshold <0..1>` tunes boundary sensitivity (default `0.35`). **Lower → more, shorter sentences; higher → fewer, longer sentences.** Adjust only if the default over/under-splits.
    - `--min-chars <N>` / `--max-chars <N>` tune length-constrained splitting.
@@ -51,13 +60,12 @@ Turn an undifferentiated block of text into **natural sentences**, on-device. Th
 
 When the input is **plain text**, there is no timing to report: the JSON segments carry **no** `start` / `end` fields — do not assume the keys exist, and never fabricate times. The same applies to `--format srt` on plain text: the cues carry no real timing, so the SRT is not usable as a subtitle file.
 
-To get **real per-sentence timing**, pair segmentation with alignment:
+To get **real per-sentence timing**:
 
-1. `edgespeak-cli align <media> --text <same text>` → word-level timestamps (see `edgespeak-align`).
-2. Segment the text into sentences here.
-3. Map each sentence onto the aligned words in order: sentence `start` = its first word's `start`, `end` = its last word's `end`.
+- **Already have a word-timed JSON** (from `edgespeak-transcribe` or `edgespeak-align`)? Run `segment --transcript <json>` — it re-splits and re-maps the word timings in one command; no manual mapping needed.
+- **Only have media + plain text?** Run `edgespeak-cli align <media> --text-file <text> -o words.json` first to get the word-timed JSON (see `edgespeak-align`), then `segment --transcript words.json`.
 
-Use `segment` alone when you only need **clean sentence text**; add `align` when you also need **timing**.
+Use `--file` / `--text` when you only need **clean sentence text**; use `--transcript` when you also need **timing**.
 
 ## Output shape (json)
 

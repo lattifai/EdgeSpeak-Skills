@@ -39,6 +39,10 @@ edgespeak-cli status
 
 Update the runtime later with `edgespeak-cli update` (re-fetches the latest self-contained package).
 
+### Versioning
+
+Each skill's frontmatter carries its own `version` plus `minCliVersion` — the oldest `edgespeak-cli` that skill is written against (the translate skill has no CLI dependency, so no `minCliVersion`). If `edgespeak-cli --version` reports something older, or a flag documented in a skill is missing from the installed `--help`, run `edgespeak-cli update` first.
+
 ### Extra requirements for the karaoke skill
 
 `edgespeak-karaoke` runs bundled scripts and renders video, so it also needs:
@@ -85,13 +89,14 @@ For headless or air-gapped machines: `edgespeak-cli models download --all` pre-d
 |-------|--------------|
 | [`edgespeak-transcribe`](skills/edgespeak-transcribe/SKILL.md) | Transcribe audio/video to text / SRT / JSON with timing and sentence-shaping options, fully on-device |
 | [`edgespeak-align`](skills/edgespeak-align/SKILL.md) | Force-align audio against a known transcript → word-level timestamps (karaoke captions, clip cutting, dubbing) |
-| [`edgespeak-segment`](skills/edgespeak-segment/SKILL.md) | Split a wall of (even unpunctuated) text into natural sentences |
+| [`edgespeak-segment`](skills/edgespeak-segment/SKILL.md) | Split a wall of (even unpunctuated) text into natural sentences — or re-split a word-timed transcript at a new cue length with every word timing re-mapped |
 | [`edgespeak-broadcast`](skills/edgespeak-broadcast/SKILL.md) | Turn text into speech fully on-device (Broadcast): WAV synthesis with selectable, cloned, or text-designed voices, style instructions, and reproducible seeds |
 | [`edgespeak-karaoke`](skills/edgespeak-karaoke/SKILL.md) | Create styled word-highlighted ASS captions, preview presets on real video frames, and optionally burn them into the source container where practical |
+| [`edgespeak-translate`](skills/edgespeak-translate/SKILL.md) | Translate a timed transcript with the timings and 1:1 segment mapping intact — subtitles, bilingual SRT, or a length-budgeted dub script |
 
 ## How it works
 
-The transcription, alignment, segmentation, and broadcast skills shell out to `edgespeak-cli` (`transcribe` / `align` / `segment` / `speech`). The karaoke skill prefers a configured EdgeSpeak MCP server and uses the CLI as its fallback. When the EdgeSpeak desktop app is running, CLI calls use its local gateway (OpenAI-compatible, `127.0.0.1:1117`, local-only route) and reuse the warm model (proxy mode). When the app is not running, the CLI launches the bundled on-device engine itself (standalone mode) — this is a normal mode, not an error. Either way audio is processed on-device — nothing is uploaded.
+The transcription, alignment, segmentation, and broadcast skills shell out to `edgespeak-cli` (`transcribe` / `align` / `segment` / `speech`). The karaoke skill prefers a configured EdgeSpeak MCP server and uses the CLI as its fallback. The translate skill uses no EdgeSpeak runtime at all — the agent does the translating itself, so the text stays on your machine like the audio does; its bundled checker, which verifies the timings and segment mapping survived, needs only Node.js 18+. When the EdgeSpeak desktop app is running, CLI calls use its local gateway (OpenAI-compatible, `127.0.0.1:1117`, local-only route) and reuse the warm model (proxy mode). When the app is not running, the CLI launches the bundled on-device engine itself (standalone mode) — this is a normal mode, not an error. Either way audio is processed on-device — nothing is uploaded.
 
 ## License
 
